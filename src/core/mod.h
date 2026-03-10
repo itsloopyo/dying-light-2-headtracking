@@ -21,6 +21,7 @@ public:
     void Toggle();
 
     void Recenter();
+    void TogglePosition();
 
     Config& GetConfig() { return m_config; }
     const Config& GetConfig() const { return m_config; }

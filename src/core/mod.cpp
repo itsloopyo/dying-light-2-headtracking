@@ -251,6 +251,18 @@ void Mod::Recenter() {
     }
 }
 
+void Mod::TogglePosition() {
+    m_positionEnabled = !m_positionEnabled;
+    if (!m_positionEnabled) {
+        m_positionProcessor.Reset();
+        m_positionInterpolator.Reset();
+    }
+    Logger::Instance().Info("Position tracking %s", m_positionEnabled ? "enabled" : "disabled");
+    if (m_config.showNotifications) {
+        ShowNotification(m_positionEnabled ? "Position Tracking: ON" : "Position Tracking: OFF");
+    }
+}
+
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
     // Guard against multiple calls per frame (shadows, reflections, etc.)
     // Return cached result if the tick hasn't advanced.

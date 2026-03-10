@@ -21,6 +21,7 @@ void Config::SetDefaults() {
 
     toggleKey = DEFAULT_TOGGLE_KEY;
     recenterKey = DEFAULT_RECENTER_KEY;
+    positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
 
     positionSensitivityX = 2.0f;
     positionSensitivityY = 2.0f;
@@ -87,6 +88,8 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->toggleKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "RecenterKey")) {
         config->recenterKey = static_cast<int>(strtol(value, nullptr, 0));
+    } else if (MATCH("Hotkeys", "PositionToggleKey")) {
+        config->positionToggleKey = static_cast<int>(strtol(value, nullptr, 0));
     }
     // Position section
     else if (MATCH("Position", "SensitivityX")) {
@@ -182,7 +185,8 @@ bool Config::Save(const char* path) const {
     file << "[Hotkeys]\n";
     file << "; Virtual key codes (hex)\n";
     file << "ToggleKey=0x" << std::hex << toggleKey << "    ; End - Enable/disable\n";
-    file << "RecenterKey=0x" << std::hex << recenterKey << "  ; Home - Recenter view\n\n";
+    file << "RecenterKey=0x" << std::hex << recenterKey << "  ; Home - Recenter view\n";
+    file << "PositionToggleKey=0x" << std::hex << positionToggleKey << " ; Page Up - Toggle position\n\n";
 
     file << "[General]\n";
     file << "; Auto-enable tracking on game start\n";

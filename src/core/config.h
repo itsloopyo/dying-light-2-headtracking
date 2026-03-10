@@ -16,6 +16,7 @@ struct Config {
     // Hotkeys (Virtual Key codes)
     int toggleKey = DEFAULT_TOGGLE_KEY;
     int recenterKey = DEFAULT_RECENTER_KEY;
+    int positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
 
     // Position settings (6DOF)
     float positionSensitivityX = 2.0f;
