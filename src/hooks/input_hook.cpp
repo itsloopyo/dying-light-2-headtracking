@@ -13,11 +13,13 @@ static std::atomic<bool> g_running{false};
 static std::atomic<int> g_toggleKey{DEFAULT_TOGGLE_KEY};
 static std::atomic<int> g_recenterKey{DEFAULT_RECENTER_KEY};
 static std::atomic<int> g_positionToggleKey{DEFAULT_POSITION_TOGGLE_KEY};
+static std::atomic<int> g_reticleToggleKey{DEFAULT_RETICLE_TOGGLE_KEY};
 
 // Key state tracking for debouncing
 static std::atomic<bool> g_toggleKeyDown{false};
 static std::atomic<bool> g_recenterKeyDown{false};
 static std::atomic<bool> g_positionToggleKeyDown{false};
+static std::atomic<bool> g_reticleToggleKeyDown{false};
 
 static void InputPollingThread() {
     Logger::Instance().Debug("Input polling thread started");
@@ -54,6 +56,16 @@ static void InputPollingThread() {
             g_positionToggleKeyDown.store(false);
         }
 
+        int reticleToggleKey = g_reticleToggleKey.load();
+        bool reticleTogglePressed = (GetAsyncKeyState(reticleToggleKey) & 0x8000) != 0;
+        if (reticleTogglePressed && !g_reticleToggleKeyDown.load()) {
+            g_reticleToggleKeyDown.store(true);
+            Logger::Instance().Debug("Reticle toggle key (%s) pressed", VirtualKeyToString(reticleToggleKey));
+            Mod::Instance().ToggleReticle();
+        } else if (!reticleTogglePressed && g_reticleToggleKeyDown.load()) {
+            g_reticleToggleKeyDown.store(false);
+        }
+
         Sleep(16);  // ~60Hz polling rate
     }
 
@@ -70,11 +82,13 @@ bool InstallInputHook() {
     g_toggleKey.store(config.toggleKey);
     g_recenterKey.store(config.recenterKey);
     g_positionToggleKey.store(config.positionToggleKey);
+    g_reticleToggleKey.store(config.reticleToggleKey);
 
     // Reset key states
     g_toggleKeyDown.store(false);
     g_recenterKeyDown.store(false);
     g_positionToggleKeyDown.store(false);
+    g_reticleToggleKeyDown.store(false);
 
     // Start polling thread
     g_stopFlag.store(false);

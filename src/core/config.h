@@ -17,6 +17,7 @@ struct Config {
     int toggleKey = DEFAULT_TOGGLE_KEY;
     int recenterKey = DEFAULT_RECENTER_KEY;
     int positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
+    int reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
 
     // Position settings (6DOF)
     float positionSensitivityX = 2.0f;
@@ -30,6 +31,9 @@ struct Config {
     bool positionInvertY = false;
     bool positionInvertZ = false;
     bool positionEnabled = true;
+
+    // Reticle settings
+    bool reticleEnabled = true;
 
     // General settings
     bool autoEnable = true;

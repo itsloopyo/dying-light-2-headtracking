@@ -22,6 +22,7 @@ public:
 
     void Recenter();
     void TogglePosition();
+    void ToggleReticle();
 
     Config& GetConfig() { return m_config; }
     const Config& GetConfig() const { return m_config; }
@@ -59,6 +60,9 @@ private:
     cameraunlock::PositionProcessor m_positionProcessor;
     cameraunlock::PositionInterpolator m_positionInterpolator;
     bool m_positionEnabled = true;
+
+    // Reticle overlay
+    bool m_reticleEnabled = true;
 
     // Timing for frame-rate independent processing
     uint64_t m_lastProcessTime = 0;

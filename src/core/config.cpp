@@ -22,6 +22,7 @@ void Config::SetDefaults() {
     toggleKey = DEFAULT_TOGGLE_KEY;
     recenterKey = DEFAULT_RECENTER_KEY;
     positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
+    reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
 
     positionSensitivityX = 2.0f;
     positionSensitivityY = 2.0f;
@@ -34,6 +35,8 @@ void Config::SetDefaults() {
     positionInvertY = false;
     positionInvertZ = false;
     positionEnabled = true;
+
+    reticleEnabled = true;
 
     autoEnable = true;
     showNotifications = true;
@@ -90,6 +93,8 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->recenterKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "PositionToggleKey")) {
         config->positionToggleKey = static_cast<int>(strtol(value, nullptr, 0));
+    } else if (MATCH("Hotkeys", "ReticleToggleKey")) {
+        config->reticleToggleKey = static_cast<int>(strtol(value, nullptr, 0));
     }
     // Position section
     else if (MATCH("Position", "SensitivityX")) {
@@ -114,6 +119,10 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->positionInvertZ = (strcmp(value, "true") == 0 || atoi(value) == 1);
     } else if (MATCH("Position", "Enabled")) {
         config->positionEnabled = (strcmp(value, "true") == 0 || atoi(value) == 1);
+    }
+    // Reticle section
+    else if (MATCH("Reticle", "Enabled")) {
+        config->reticleEnabled = (strcmp(value, "true") == 0 || atoi(value) == 1);
     }
     // General section
     else if (MATCH("General", "AutoEnable")) {
@@ -186,7 +195,12 @@ bool Config::Save(const char* path) const {
     file << "; Virtual key codes (hex)\n";
     file << "ToggleKey=0x" << std::hex << toggleKey << "    ; End - Enable/disable\n";
     file << "RecenterKey=0x" << std::hex << recenterKey << "  ; Home - Recenter view\n";
-    file << "PositionToggleKey=0x" << std::hex << positionToggleKey << " ; Page Up - Toggle position\n\n";
+    file << "PositionToggleKey=0x" << std::hex << positionToggleKey << " ; Page Up - Toggle position\n";
+    file << "ReticleToggleKey=0x" << std::hex << reticleToggleKey << "  ; Insert - Toggle reticle\n\n";
+
+    file << "[Reticle]\n";
+    file << "; Show the head tracking reticle overlay\n";
+    file << "Enabled=" << (reticleEnabled ? "true" : "false") << "\n\n";
 
     file << "[General]\n";
     file << "; Auto-enable tracking on game start\n";

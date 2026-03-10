@@ -76,6 +76,7 @@ This mod includes built-in smoothing to handle network jitter, so if your tracki
 | **End**     | Toggle head tracking on/off     |
 | **Home**    | Recenter view                   |
 | **Page Up** | Toggle position tracking on/off |
+| **Insert**  | Toggle reticle on/off           |
 
 ## Configuration
 
@@ -107,6 +108,10 @@ Enabled=true              ; Enable/disable positional tracking (set false for 3D
 ToggleKey=0x23            ; End key (VK code in hex)
 RecenterKey=0x24          ; Home key (VK code in hex)
 PositionToggleKey=0x21    ; Page Up key (VK code in hex)
+ReticleToggleKey=0x2d     ; Insert key (VK code in hex)
+
+[Reticle]
+Enabled=true              ; Show/hide the head tracking reticle overlay
 
 [General]
 AutoEnable=true           ; Start tracking when game launches

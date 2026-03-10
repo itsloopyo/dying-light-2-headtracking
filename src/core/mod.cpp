@@ -40,6 +40,9 @@ bool Mod::Initialize() {
     Logger::Instance().Info("TrackingProcessor initialized with sensitivity: yaw=%.2f pitch=%.2f roll=%.2f",
                             sensitivity.yaw, sensitivity.pitch, sensitivity.roll);
 
+    // Initialize reticle state
+    m_reticleEnabled = m_config.reticleEnabled;
+
     // Initialize position processor (6DOF)
     m_positionEnabled = m_config.positionEnabled;
     cameraunlock::PositionSettings posSettings(
@@ -73,10 +76,12 @@ bool Mod::Initialize() {
     if (m_config.autoEnable) {
         m_enabled.store(true);
         SetCameraHookEnabled(true);
+        SetCrosshairEnabled(m_reticleEnabled);
         Logger::Instance().Info("Head tracking auto-enabled at startup");
     } else {
         m_enabled.store(false);
         SetCameraHookEnabled(false);
+        SetCrosshairEnabled(false);
         Logger::Instance().Info("Head tracking disabled at startup (auto-enable is off)");
     }
 
@@ -206,7 +211,7 @@ void Mod::SetEnabled(bool enabled) {
     if (wasEnabled != enabled) {
         // Update hooks directly
         SetCameraHookEnabled(enabled);
-        SetCrosshairEnabled(enabled);
+        SetCrosshairEnabled(enabled && m_reticleEnabled);
         SetStockCrosshairVisible(!enabled);
 
         if (enabled) {
@@ -248,6 +253,15 @@ void Mod::Recenter() {
     Logger::Instance().Info("View recentered");
     if (m_config.showNotifications) {
         ShowNotification("View Recentered");
+    }
+}
+
+void Mod::ToggleReticle() {
+    m_reticleEnabled = !m_reticleEnabled;
+    SetCrosshairEnabled(m_enabled.load() && m_reticleEnabled);
+    Logger::Instance().Info("Reticle %s", m_reticleEnabled ? "enabled" : "disabled");
+    if (m_config.showNotifications) {
+        ShowNotification(m_reticleEnabled ? "Reticle: ON" : "Reticle: OFF");
     }
 }
 
@@ -307,9 +321,10 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
         rawYaw, rawPitch, rawRoll, isNewSample, deltaTime);
 
     // Process through the pipeline (applies offset, smoothing, sensitivity)
-    bool isRemote = m_udpReceiver.IsRemoteConnection();
+    // Always apply smoothing baseline — local connections benefit from the same
+    // minimum smoothing floor that remote connections get (prevents raw jitter).
     cameraunlock::TrackingPose processed = m_processor.Process(
-        interpolated.yaw, interpolated.pitch, interpolated.roll, isRemote, deltaTime);
+        interpolated.yaw, interpolated.pitch, interpolated.roll, true, deltaTime);
 
     yaw = processed.yaw;
     pitch = processed.pitch;
@@ -362,8 +377,7 @@ bool Mod::GetPositionOffset(float& x, float& y, float& z) {
         pitch * cameraunlock::math::kDegToRad,
         roll * cameraunlock::math::kDegToRad);
 
-    bool isRemote = m_udpReceiver.IsRemoteConnection();
-    cameraunlock::math::Vec3 offset = m_positionProcessor.Process(interpolatedPos, headRotQ, isRemote, deltaTime);
+    cameraunlock::math::Vec3 offset = m_positionProcessor.Process(interpolatedPos, headRotQ, true, deltaTime);
 
     x = offset.x;
     y = offset.y;
