@@ -106,20 +106,27 @@ jobs:
             -ArtifactPaths $artifactPaths `
             -ProjectName "Head Tracking for Dying Light 2"
 
-      - name: Find release ZIP
-        id: find_zip
+      - name: Find release ZIPs
+        id: find_zips
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
-          $zipPath = "release/DL2HeadTracking-v$version.zip"
+          $installerZip = "release/DL2HeadTracking-v$version-installer.zip"
+          $nexusZip = "release/DL2HeadTracking-v$version-nexus.zip"
 
-          if (-not (Test-Path $zipPath)) {
-            Write-Host "::error::Release ZIP not found at $zipPath"
+          if (-not (Test-Path $installerZip)) {
+            Write-Host "::error::Installer ZIP not found at $installerZip"
+            exit 1
+          }
+          if (-not (Test-Path $nexusZip)) {
+            Write-Host "::error::Nexus ZIP not found at $nexusZip"
             exit 1
           }
 
-          echo "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
-          Write-Host "Found ZIP: $zipPath"
+          echo "installer_zip=$installerZip" >> $env:GITHUB_OUTPUT
+          echo "nexus_zip=$nexusZip" >> $env:GITHUB_OUTPUT
+          Write-Host "Found: $installerZip"
+          Write-Host "Found: $nexusZip"
 
       - name: Create GitHub Release
         env:
@@ -127,14 +134,16 @@ jobs:
         shell: pwsh
         run: |
           $tag = "${{ steps.version.outputs.tag }}"
-          $zipPath = "${{ steps.find_zip.outputs.zip_path }}"
+          $installerZip = "${{ steps.find_zips.outputs.installer_zip }}"
+          $nexusZip = "${{ steps.find_zips.outputs.nexus_zip }}"
 
           Write-Host "Creating GitHub Release for $tag..." -ForegroundColor Cyan
 
           gh release create $tag `
             --title "Head Tracking for Dying Light 2 $tag" `
             --notes-file "release-notes.txt" `
-            $zipPath
+            $installerZip `
+            $nexusZip
 
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::error::Failed to create GitHub release"
