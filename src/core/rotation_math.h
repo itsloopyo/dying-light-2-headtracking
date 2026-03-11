@@ -76,36 +76,36 @@ inline void RotateAroundUnitAxis(Vec3& v, const Vec3& unitAxis, float cosAngle, 
     v.z = v.z*cosAngle + cross.z*sinAngle + unitAxis.z*dot*omc;
 }
 
-// Apply yaw/pitch/roll head tracking rotations using spherical coordinates
-// in the game camera's local frame. This constructs the final direction directly
-// rather than sequential rotations, so yaw and pitch are fully independent —
-// yawing while pitched doesn't produce arc artifacts.
-// Up is re-derived to avoid coupling/circular artifacts.
+// Apply yaw/pitch/roll head tracking rotations with horizon-locked yaw.
+// Yaw rotates around world Y (vertical) so turning left/right stays on the
+// horizon regardless of camera pitch. Pitch rotates around the camera's
+// right vector. Up is re-derived to avoid coupling artifacts.
 // DL2 coordinate system: X=forward, Y=up, Z=left
 inline void ApplyHeadTrackingRotation(float* fwdArr, float* upArr, float yaw, float pitch, float roll) {
-    Vec3 origFwd(fwdArr);
-    Vec3 origUp(upArr);
-    Vec3 origRight = origUp.Cross(origFwd).Normalized();
+    Vec3 fwd(fwdArr);
+    Vec3 up(upArr);
 
-    // Construct new forward from spherical coordinates in camera frame.
-    // fwd = cos(pitch)*cos(yaw)*forward + cos(pitch)*sin(yaw)*right - sin(pitch)*up
-    // This ensures yaw produces pure screen-horizontal motion at any pitch,
-    // and pitch produces pure screen-vertical motion at any yaw.
-    float cosY = cosf(yaw), sinY = sinf(yaw);
-    float cosP = cosf(pitch), sinP = sinf(pitch);
+    static const Vec3 worldUp(0.0f, 1.0f, 0.0f);
 
-    Vec3 fwd(
-        cosP * cosY * origFwd.x + cosP * sinY * origRight.x - sinP * origUp.x,
-        cosP * cosY * origFwd.y + cosP * sinY * origRight.y - sinP * origUp.y,
-        cosP * cosY * origFwd.z + cosP * sinY * origRight.z - sinP * origUp.z
-    );
+    // Yaw: rotate around world Y axis (horizon-locked)
+    if (fabsf(yaw) >= ROTATION_THRESHOLD) {
+        float cy = cosf(yaw), sy = sinf(yaw);
+        RotateAroundUnitAxis(fwd, worldUp, cy, sy);
+        RotateAroundUnitAxis(up, worldUp, cy, sy);
+    }
 
-    // Re-derive up by projecting original game up perpendicular to new forward.
-    float dot = fwd.Dot(origUp);
-    Vec3 up(origUp.x - fwd.x * dot, origUp.y - fwd.y * dot, origUp.z - fwd.z * dot);
-    up = up.Normalized();
+    // Pitch: rotate forward around camera's right vector
+    if (fabsf(pitch) >= ROTATION_THRESHOLD) {
+        Vec3 right = up.Cross(fwd).Normalized();
+        float cp = cosf(pitch), sp = sinf(pitch);
+        RotateAroundUnitAxis(fwd, right, cp, sp);
+    }
 
-    // Apply head tracking roll around forward
+    // Re-derive up perpendicular to new forward
+    float dot = fwd.Dot(up);
+    up = Vec3(up.x - fwd.x * dot, up.y - fwd.y * dot, up.z - fwd.z * dot).Normalized();
+
+    // Roll: rotate up around forward axis
     if (fabsf(roll) >= ROTATION_THRESHOLD) {
         float cr = cosf(roll), sr = sinf(roll);
         RotateAroundUnitAxis(up, fwd, cr, sr);
