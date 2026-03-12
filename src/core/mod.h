@@ -66,6 +66,7 @@ private:
 
     // Timing for frame-rate independent processing
     uint64_t m_lastProcessTime = 0;
+    float m_lastDeltaTime = 0.016f;  // cached for GetPositionOffset to reuse
 
     // Cached rotation from last GetProcessedRotation
     // Used by GetPositionOffset (neck model) and to prevent re-processing

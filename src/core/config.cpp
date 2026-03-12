@@ -30,6 +30,7 @@ void Config::SetDefaults() {
     positionLimitX = 0.30f;
     positionLimitY = 0.20f;
     positionLimitZ = 0.40f;
+    positionLimitZBack = 0.10f;
     positionSmoothing = 0.15f;
     positionInvertX = false;
     positionInvertY = false;
@@ -57,6 +58,7 @@ void Config::Validate() {
     positionLimitX = std::clamp(positionLimitX, 0.01f, 2.0f);
     positionLimitY = std::clamp(positionLimitY, 0.01f, 2.0f);
     positionLimitZ = std::clamp(positionLimitZ, 0.01f, 2.0f);
+    positionLimitZBack = std::clamp(positionLimitZBack, 0.01f, 2.0f);
 
     // Clamp position smoothing
     positionSmoothing = std::clamp(positionSmoothing, 0.0f, 0.99f);
@@ -109,6 +111,8 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->positionLimitY = static_cast<float>(atof(value));
     } else if (MATCH("Position", "LimitZ")) {
         config->positionLimitZ = static_cast<float>(atof(value));
+    } else if (MATCH("Position", "LimitZBack")) {
+        config->positionLimitZBack = static_cast<float>(atof(value));
     } else if (MATCH("Position", "Smoothing")) {
         config->positionSmoothing = static_cast<float>(atof(value));
     } else if (MATCH("Position", "InvertX")) {
@@ -182,6 +186,8 @@ bool Config::Save(const char* path) const {
     file << "LimitX=" << positionLimitX << "\n";
     file << "LimitY=" << positionLimitY << "\n";
     file << "LimitZ=" << positionLimitZ << "\n";
+    file << "; Backward lean limit (prevents camera clipping through player model)\n";
+    file << "LimitZBack=" << positionLimitZBack << "\n";
     file << "; Smoothing factor (0.0 = none, 0.99 = maximum)\n";
     file << "Smoothing=" << positionSmoothing << "\n";
     file << "; Invert position axes\n";

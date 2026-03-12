@@ -12,6 +12,16 @@
 
 namespace DL2HT {
 
+// High-resolution timer using QueryPerformanceCounter.
+// GetTickCount64() granularity is too coarse for per-frame delta timing at high refresh rates.
+static uint64_t GetTimeMicros() {
+    static LARGE_INTEGER freq = {};
+    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    return static_cast<uint64_t>(now.QuadPart * 1000000 / freq.QuadPart);
+}
+
 Mod& Mod::Instance() {
     static Mod instance;
     return instance;
@@ -47,7 +57,7 @@ bool Mod::Initialize() {
     m_positionEnabled = m_config.positionEnabled;
     cameraunlock::PositionSettings posSettings(
         m_config.positionSensitivityX, m_config.positionSensitivityY, m_config.positionSensitivityZ,
-        m_config.positionLimitX, m_config.positionLimitY, m_config.positionLimitZ,
+        m_config.positionLimitX, m_config.positionLimitY, m_config.positionLimitZ, m_config.positionLimitZBack,
         m_config.positionSmoothing,
         m_config.positionInvertX, m_config.positionInvertY, m_config.positionInvertZ
     );
@@ -279,9 +289,9 @@ void Mod::TogglePosition() {
 
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
     // Guard against multiple calls per frame (shadows, reflections, etc.)
-    // Return cached result if the tick hasn't advanced.
-    uint64_t now = GetTickCount64();
-    if (m_lastProcessTime > 0 && now == m_lastProcessTime) {
+    // A 1000μs threshold separates intra-frame passes from distinct frames.
+    uint64_t now = GetTimeMicros();
+    if (m_lastProcessTime > 0 && (now - m_lastProcessTime) < 1000) {
         yaw = m_cachedYaw;
         pitch = m_cachedPitch;
         roll = m_cachedRoll;
@@ -305,11 +315,12 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
     // Calculate delta time for frame-rate independent smoothing
     float deltaTime = 0.016f;  // Default for first call
     if (m_lastProcessTime > 0) {
-        deltaTime = (now - m_lastProcessTime) / 1000.0f;
+        deltaTime = (now - m_lastProcessTime) / 1000000.0f;  // microseconds → seconds
         if (deltaTime > 0.1f) deltaTime = 0.1f;
-        if (deltaTime < 0.001f) deltaTime = 0.001f;
+        if (deltaTime < 0.0001f) deltaTime = 0.0001f;
     }
     m_lastProcessTime = now;
+    m_lastDeltaTime = deltaTime;
 
     // Detect new tracking samples by comparing receive timestamps
     int64_t receiveTs = m_udpReceiver.GetLastReceiveTimestamp();
@@ -353,14 +364,9 @@ bool Mod::GetPositionOffset(float& x, float& y, float& z) {
         return false;
     }
 
-    // Calculate delta time (reuse same timing as rotation)
-    uint64_t now = GetTickCount64();
-    float deltaTime = 0.016f;
-    if (m_lastProcessTime > 0 && now > m_lastProcessTime) {
-        deltaTime = (now - m_lastProcessTime) / 1000.0f;
-        if (deltaTime > 0.1f) deltaTime = 0.1f;
-        if (deltaTime < 0.001f) deltaTime = 0.001f;
-    }
+    // Reuse deltaTime from GetProcessedRotation (called earlier this frame).
+    // Computing a fresh delta here would give microseconds of CPU time, not the frame delta.
+    float deltaTime = m_lastDeltaTime;
 
     // Build PositionData
     cameraunlock::PositionData rawPos(rawX, rawY, rawZ);

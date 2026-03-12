@@ -280,17 +280,6 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
             }
         }
 
-        // Diagnostic: log gate state every 2 seconds
-        {
-            static ULONGLONG lastGateLog = 0;
-            ULONGLONG now = GetTickCount64();
-            if (now - lastGateLog >= 2000) {
-                lastGateLog = now;
-                Logger::Instance().Info("GATE en=%d load=%d frozen=%d menu=%d warmup=%d skip=%d",
-                    (int)enabled, (int)loading, (int)frozen, (int)mainMenu, (int)warmupBlock, (int)skip);
-            }
-        }
-
         if (skip) {
             ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
             return;
@@ -302,15 +291,6 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     // so head tracking is as smooth as mouse-driven camera rotation.
     float processedYaw, processedPitch, processedRoll;
     if (!Mod::Instance().GetProcessedRotation(processedYaw, processedPitch, processedRoll)) {
-        // Diagnostic: log when gate passes but no tracker data
-        {
-            static ULONGLONG lastNoDataLog = 0;
-            ULONGLONG now = GetTickCount64();
-            if (now - lastNoDataLog >= 2000) {
-                lastNoDataLog = now;
-                Logger::Instance().Info("GATE PASSED but GetProcessedRotation=false (no tracker data?)");
-            }
-        }
         ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
         return;
     }
@@ -366,15 +346,6 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         myPos[0] += flatFwdX * posOffZ + leftX * posOffX;
         myPos[1] += posOffY;
         myPos[2] += flatFwdZ * posOffZ + leftZ * posOffX;
-
-        // Diagnostic log (temporary) - fire every 2s
-        static ULONGLONG lastPosLog = 0;
-        ULONGLONG nowMs = GetTickCount64();
-        if (nowMs - lastPosLog > 2000) {
-            lastPosLog = nowMs;
-            Logger::Instance().Info("PosOff: X=%.3f Y=%.3f Z=%.3f | fwd=(%.2f,%.2f) left=(%.2f,%.2f)",
-                posOffX, posOffY, posOffZ, flatFwdX, flatFwdZ, leftX, leftZ);
-        }
     }
 
     ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, myFwd, myUp, myPos);
@@ -477,16 +448,6 @@ void RefreshGameplayStateCache() {
             Logger::Instance().Info("Level transition: LevelDI %p -> %p", (void*)prevLevelDI, pLevelDI);
         }
         firstAssignment = false;
-    }
-
-    // Periodic state log (every 5 seconds)
-    {
-        static ULONGLONG lastLogTick = 0;
-        if (now - lastLogTick >= 5000) {
-            lastLogTick = now;
-            Logger::Instance().Info("STATE loading=%d frozen=%d menu=%d levelDI=%p",
-                (int)loading, (int)frozen, (int)mainMenu, pLevelDI);
-        }
     }
 
     // Reset per-frame head tracking flag

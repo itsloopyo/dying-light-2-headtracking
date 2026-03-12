@@ -26,6 +26,7 @@ struct Config {
     float positionLimitX = 0.30f;
     float positionLimitY = 0.20f;
     float positionLimitZ = 0.40f;
+    float positionLimitZBack = 0.10f;  // backward lean limit (asymmetric)
     float positionSmoothing = 0.15f;
     bool positionInvertX = false;
     bool positionInvertY = false;

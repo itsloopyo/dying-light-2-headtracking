@@ -76,40 +76,108 @@ inline void RotateAroundUnitAxis(Vec3& v, const Vec3& unitAxis, float cosAngle, 
     v.z = v.z*cosAngle + cross.z*sinAngle + unitAxis.z*dot*omc;
 }
 
-// Apply yaw/pitch/roll head tracking rotations with horizon-locked yaw.
-// Yaw rotates around world Y (vertical) so turning left/right stays on the
-// horizon regardless of camera pitch. Pitch rotates around the camera's
-// right vector. Up is re-derived to avoid coupling artifacts.
+// Unit quaternion for singularity-free rotation composition.
+// Avoids gimbal lock and Gram-Schmidt degeneration that occur with
+// sequential Euler application at large combined pitch+roll angles.
+struct Quat {
+    float w, x, y, z;
+
+    Quat() : w(1), x(0), y(0), z(0) {}
+    Quat(float w_, float x_, float y_, float z_) : w(w_), x(x_), y(y_), z(z_) {}
+
+    // Construct from rotation around a unit-length axis by angle (radians)
+    static Quat FromAxisAngle(const Vec3& axis, float angle) {
+        float half = angle * 0.5f;
+        float s = sinf(half);
+        return Quat(cosf(half), axis.x * s, axis.y * s, axis.z * s);
+    }
+
+    Quat operator*(const Quat& b) const {
+        return Quat(
+            w*b.w - x*b.x - y*b.y - z*b.z,
+            w*b.x + x*b.w + y*b.z - z*b.y,
+            w*b.y - x*b.z + y*b.w + z*b.x,
+            w*b.z + x*b.y - y*b.x + z*b.w
+        );
+    }
+
+    // Shortest-arc rotation from unit vector 'from' to unit vector 'to'
+    static Quat ShortestArc(const Vec3& from, const Vec3& to) {
+        float d = from.Dot(to);
+        if (d >= 0.999999f) return Quat();
+        if (d <= -0.999999f) {
+            // 180° — use arbitrary perpendicular axis
+            Vec3 perp = (fabsf(from.x) < 0.9f) ? Vec3(1,0,0) : Vec3(0,1,0);
+            Vec3 axis = from.Cross(perp).Normalized();
+            return Quat(0, axis.x, axis.y, axis.z);
+        }
+        Vec3 c = from.Cross(to);
+        return Quat(1.0f + d, c.x, c.y, c.z).Normalized();
+    }
+
+    Quat Normalized() const {
+        float len = sqrtf(w*w + x*x + y*y + z*z);
+        if (len < 0.0001f) return Quat();
+        float inv = 1.0f / len;
+        return Quat(w*inv, x*inv, y*inv, z*inv);
+    }
+
+    // Rotate vector by this quaternion (assumes unit quaternion).
+    // Optimized formula: v' = v + 2w(q×v) + 2(q×(q×v))
+    Vec3 Rotate(const Vec3& v) const {
+        float tx = 2.0f * (y*v.z - z*v.y);
+        float ty = 2.0f * (z*v.x - x*v.z);
+        float tz = 2.0f * (x*v.y - y*v.x);
+        return Vec3(
+            v.x + w*tx + (y*tz - z*ty),
+            v.y + w*ty + (z*tx - x*tz),
+            v.z + w*tz + (x*ty - y*tx)
+        );
+    }
+};
+
+// Apply yaw/pitch/roll head tracking rotations using spherical direction
+// targeting with quaternion composition.
+//
+// Target forward is computed from spherical coordinates in the camera's local
+// frame, so yaw produces pure screen-horizontal motion and pitch produces
+// pure screen-vertical motion at any camera orientation — no "sticky spots"
+// during compound rotations.
+//
+// A shortest-arc quaternion rotates the camera frame from original to target,
+// avoiding Gram-Schmidt re-derivation and its singularity at extreme pitch.
+// Roll is composed on top as rotation around the original forward axis.
+//
 // DL2 coordinate system: X=forward, Y=up, Z=left
 inline void ApplyHeadTrackingRotation(float* fwdArr, float* upArr, float yaw, float pitch, float roll) {
     Vec3 fwd(fwdArr);
     Vec3 up(upArr);
 
-    static const Vec3 worldUp(0.0f, 1.0f, 0.0f);
+    if (fabsf(yaw) < ROTATION_THRESHOLD &&
+        fabsf(pitch) < ROTATION_THRESHOLD &&
+        fabsf(roll) < ROTATION_THRESHOLD)
+        return;
 
-    // Yaw: rotate around world Y axis (horizon-locked)
-    if (fabsf(yaw) >= ROTATION_THRESHOLD) {
-        float cy = cosf(yaw), sy = sinf(yaw);
-        RotateAroundUnitAxis(fwd, worldUp, cy, sy);
-        RotateAroundUnitAxis(up, worldUp, cy, sy);
-    }
+    // Target direction from spherical coordinates in camera-local frame:
+    //   targetFwd = cos(p)*cos(y)*fwd + cos(p)*sin(y)*right - sin(p)*up
+    Vec3 right = up.Cross(fwd).Normalized();
+    float cosY = cosf(yaw), sinY = sinf(yaw);
+    float cosP = cosf(pitch), sinP = sinf(pitch);
 
-    // Pitch: rotate forward around camera's right vector
-    if (fabsf(pitch) >= ROTATION_THRESHOLD) {
-        Vec3 right = up.Cross(fwd).Normalized();
-        float cp = cosf(pitch), sp = sinf(pitch);
-        RotateAroundUnitAxis(fwd, right, cp, sp);
-    }
+    Vec3 targetFwd = Vec3(
+        cosP*cosY*fwd.x + cosP*sinY*right.x - sinP*up.x,
+        cosP*cosY*fwd.y + cosP*sinY*right.y - sinP*up.y,
+        cosP*cosY*fwd.z + cosP*sinY*right.z - sinP*up.z
+    ).Normalized();
 
-    // Re-derive up perpendicular to new forward
-    float dot = fwd.Dot(up);
-    up = Vec3(up.x - fwd.x * dot, up.y - fwd.y * dot, up.z - fwd.z * dot).Normalized();
+    // Shortest-arc quaternion from fwd to targetFwd, then roll around fwd.
+    // The intrinsic composition qDir * qRoll applies the direction change
+    // first, then rolls in the resulting frame.
+    Quat q = Quat::ShortestArc(fwd, targetFwd)
+           * Quat::FromAxisAngle(fwd, roll);
 
-    // Roll: rotate up around forward axis
-    if (fabsf(roll) >= ROTATION_THRESHOLD) {
-        float cr = cosf(roll), sr = sinf(roll);
-        RotateAroundUnitAxis(up, fwd, cr, sr);
-    }
+    fwd = q.Rotate(fwd);
+    up = q.Rotate(up);
 
     fwd.ToArray(fwdArr);
     up.ToArray(upArr);
