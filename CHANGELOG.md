@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.2] - 2026-03-12
+
+### Other
+
+- Switch rotation model from spherical to horizon-locked sequential yaw/pitch/roll
+
 ## [1.0.1] - 2026-03-10
 
 ### Other
