@@ -30,17 +30,17 @@ set(INIH_SOURCES
 
 # ImGui sources
 set(IMGUI_SOURCES
-    libs/imgui/imgui.cpp
-    libs/imgui/imgui_draw.cpp
-    libs/imgui/imgui_tables.cpp
-    libs/imgui/imgui_widgets.cpp
-    libs/imgui/imgui_impl_win32.cpp
-    libs/imgui/imgui_impl_dx12.cpp
+    extern/imgui/imgui.cpp
+    extern/imgui/imgui_draw.cpp
+    extern/imgui/imgui_tables.cpp
+    extern/imgui/imgui_widgets.cpp
+    extern/imgui/imgui_impl_win32.cpp
+    extern/imgui/imgui_impl_dx12.cpp
 )
 
 # Kiero source
 set(KIERO_SOURCES
-    libs/kiero/kiero.cpp
+    extern/kiero/kiero.cpp
 )
 
 # Mod source files
@@ -91,8 +91,8 @@ target_include_directories(DyingLight2HeadTracking PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/extern
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/minhook/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/libs/kiero
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/kiero
 )
 
 # Windows libraries

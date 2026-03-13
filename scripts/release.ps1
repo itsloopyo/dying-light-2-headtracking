@@ -125,6 +125,10 @@ Write-Host ""
 Write-Host "Updating version to $Version..." -ForegroundColor Cyan
 Set-Version $Version
 
+# Also update MOD_VERSION in install.cmd so the installer displays the correct version
+$installCmdPath = Join-Path $scriptDir "install.cmd"
+(Get-Content $installCmdPath -Raw) -replace 'set "MOD_VERSION=.*?"', "set `"MOD_VERSION=$Version`"" | Set-Content $installCmdPath -NoNewline
+
 # Step 2: Generate CHANGELOG
 Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
@@ -152,7 +156,7 @@ if (-not $hasExistingTags) {
 
 # Step 3: Commit
 Write-Host "Committing version change..." -ForegroundColor Cyan
-git add $manifestPath $changelogPath
+git add $manifestPath $changelogPath $installCmdPath
 git commit -m "Release v$Version"
 
 # Step 3: Create tag
