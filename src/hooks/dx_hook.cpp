@@ -72,6 +72,7 @@ struct CrosshairState {
     std::atomic<float> pitchOffset{0.0f};
     std::atomic<float> rollOffset{0.0f};
     std::atomic<float> gameCameraPitch{0.0f};  // Game camera pitch (radians) from gamepad/mouse
+    std::atomic<float> fovDegrees{DEFAULT_FOV_DEG};  // Live FOV from engine camera
     std::atomic<bool> enabled{false};
 
     // Config - match stock reticle (small white dot)
@@ -115,7 +116,7 @@ static void DrawCrosshair(float screenWidth, float screenHeight) {
     cameraunlock::rendering::CrosshairProjectionParams params;
     params.screenWidth = screenWidth;
     params.screenHeight = screenHeight;
-    params.fovDegrees = DEFAULT_FOV_DEG;
+    params.fovDegrees = g_crosshair.fovDegrees.load(std::memory_order_relaxed);
     params.yawOffset = g_crosshair.yawOffset.load(std::memory_order_relaxed);
     params.pitchOffset = g_crosshair.pitchOffset.load(std::memory_order_relaxed);
     params.rollOffset = g_crosshair.rollOffset.load(std::memory_order_relaxed);
@@ -490,6 +491,10 @@ void SetCrosshairOffset(float yaw, float pitch, float roll) {
 
 void SetGameCameraPitch(float pitchRadians) {
     g_crosshair.gameCameraPitch.store(pitchRadians, std::memory_order_relaxed);
+}
+
+void SetCrosshairFOV(float fovDegrees) {
+    g_crosshair.fovDegrees.store(fovDegrees, std::memory_order_relaxed);
 }
 
 void SetCrosshairEnabled(bool enabled) {

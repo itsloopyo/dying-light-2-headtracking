@@ -16,6 +16,9 @@ void SetCrosshairOffset(float yaw, float pitch, float roll);
 // This is needed for correct reticle projection when looking up/down
 void SetGameCameraPitch(float pitchRadians);
 
+// Set field of view in degrees (detected from engine camera)
+void SetCrosshairFOV(float fovDegrees);
+
 // Enable/disable crosshair rendering
 void SetCrosshairEnabled(bool enabled);
 

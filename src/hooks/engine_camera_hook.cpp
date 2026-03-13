@@ -24,6 +24,7 @@ static constexpr int CGAME_LEVEL_NAME_OFFSET = 0x3B0;  // inline string, "menu_l
 // Function signatures
 typedef bool (*IsLoadingFunc_t)(void* pLevel);
 typedef bool (*IsTimerFrozenFunc_t)(void* pLevel);
+typedef float (*GetFOVFunc_t)(void* pCamera);
 typedef void (*MoveCameraFunc_t)(void* thisCamera, void* forward, void* up, void* position);
 
 // Hook state - MinHook function pointers and state
@@ -61,6 +62,7 @@ struct GameStateDetection {
     void** pCLobbySteamPtr = nullptr;
     IsLoadingFunc_t pIsLoadingFunc = nullptr;
     IsTimerFrozenFunc_t pIsTimerFrozenFunc = nullptr;
+    GetFOVFunc_t pGetFOVFunc = nullptr;
     bool initialized = false;
 };
 
@@ -101,6 +103,12 @@ static bool InitializeGameStateDetection() {
     g_gameState.pIsTimerFrozenFunc = (IsTimerFrozenFunc_t)GetProcAddress(engineModule, "?IsTimerFrozen@ILevel@@QEBA_NXZ");
     if (g_gameState.pIsTimerFrozenFunc) {
         Logger::Instance().Info("Found ILevel::IsTimerFrozen at %p", g_gameState.pIsTimerFrozenFunc);
+    }
+
+    // IBaseCamera::GetFOV() const — returns horizontal FOV in degrees
+    g_gameState.pGetFOVFunc = (GetFOVFunc_t)GetProcAddress(engineModule, "?GetFOV@IBaseCamera@@QEBAMXZ");
+    if (g_gameState.pGetFOVFunc) {
+        Logger::Instance().Info("Found IBaseCamera::GetFOV at %p", g_gameState.pGetFOVFunc);
     }
 
     g_gameState.initialized = (g_gameState.pCLobbySteamPtr != nullptr);
@@ -298,6 +306,16 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     // Update crosshair with same processed values (read by DX Present for rendering)
     SetCrosshairOffset(processedYaw, processedPitch, processedRoll);
+
+    // Read live FOV from the camera object for accurate crosshair projection
+    if (g_gameState.pGetFOVFunc) {
+        __try {
+            float fov = g_gameState.pGetFOVFunc(thisCamera);
+            if (fov > 1.0f && fov < 180.0f) {
+                SetCrosshairFOV(fov);
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    }
 
     // Mark gameplay state
     g_gameplayCache.headTrackingAppliedThisFrame.store(true, std::memory_order_relaxed);

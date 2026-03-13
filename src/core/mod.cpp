@@ -332,10 +332,8 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
         rawYaw, rawPitch, rawRoll, isNewSample, deltaTime);
 
     // Process through the pipeline (applies offset, smoothing, sensitivity)
-    // Always apply smoothing baseline — local connections benefit from the same
-    // minimum smoothing floor that remote connections get (prevents raw jitter).
     cameraunlock::TrackingPose processed = m_processor.Process(
-        interpolated.yaw, interpolated.pitch, interpolated.roll, true, deltaTime);
+        interpolated.yaw, interpolated.pitch, interpolated.roll, deltaTime);
 
     yaw = processed.yaw;
     pitch = processed.pitch;
@@ -383,7 +381,7 @@ bool Mod::GetPositionOffset(float& x, float& y, float& z) {
         pitch * cameraunlock::math::kDegToRad,
         roll * cameraunlock::math::kDegToRad);
 
-    cameraunlock::math::Vec3 offset = m_positionProcessor.Process(interpolatedPos, headRotQ, true, deltaTime);
+    cameraunlock::math::Vec3 offset = m_positionProcessor.Process(interpolatedPos, headRotQ, deltaTime);
 
     x = offset.x;
     y = offset.y;
