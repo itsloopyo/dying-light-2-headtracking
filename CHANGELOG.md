@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-03-13
+
+### Other
+
+- Move vendored libs to extern/, add neck model, update metadata
+
 ## [1.0.2] - 2026-03-12
 
 ### Other
