@@ -62,7 +62,6 @@ bool Mod::Initialize() {
         m_config.positionInvertX, m_config.positionInvertY, m_config.positionInvertZ
     );
     m_positionProcessor.SetSettings(posSettings);
-    m_positionProcessor.SetNeckModelSettings(cameraunlock::NeckModelSettings::Disabled());
     Logger::Instance().Info("Position processor initialized (%s, sens=%.1f/%.1f/%.1f, limits=%.2f/%.2f/%.2f)",
                             m_positionEnabled ? "6DOF" : "3DOF only",
                             posSettings.sensitivity_x, posSettings.sensitivity_y, posSettings.sensitivity_z,
@@ -340,7 +339,7 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
     roll = processed.roll;
 
     // Cache result (prevents re-processing on multiple calls per frame,
-    // and provides rotation for GetPositionOffset neck model)
+    // and provides rotation for GetPositionOffset)
     m_cachedYaw = yaw;
     m_cachedPitch = pitch;
     m_cachedRoll = roll;
@@ -372,7 +371,7 @@ bool Mod::GetPositionOffset(float& x, float& y, float& z) {
     // Interpolate position
     cameraunlock::PositionData interpolatedPos = m_positionInterpolator.Update(rawPos, deltaTime);
 
-    // Use cached rotation for neck model (set by last GetProcessedRotation call)
+    // Use cached rotation (set by last GetProcessedRotation call)
     float yaw = m_cachedYaw;
     float pitch = m_cachedPitch;
     float roll = m_cachedRoll;

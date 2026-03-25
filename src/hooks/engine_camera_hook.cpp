@@ -6,7 +6,6 @@
 #include "core/logger.h"
 #include "core/rotation_math.h"
 #include <cameraunlock/memory/pattern_scanner.h>
-#include <cameraunlock/processing/neck_model.h>
 
 namespace DL2HT {
 
@@ -339,7 +338,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     ApplyHeadTrackingRotation(myFwd, myUp, yaw, pitch, roll);
 
-    // Compute horizon-locked basis from original forward (shared by neck model and 6DOF)
+    // Compute horizon-locked basis from original forward (used by 6DOF position offset)
     // DL2 left-handed coords: X=forward, Y=up, Z=left
     float* posIn = (float*)position;
     float myPos[4] = { posIn[0], posIn[1], posIn[2], posIn[3] };
@@ -354,22 +353,6 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     // Left vector in XZ plane: (-flatFwdZ, flatFwdX)
     float leftX = -flatFwdZ;
     float leftZ = flatFwdX;
-
-    // Neck model: compensate for eye movement when head rotates around neck pivot.
-    // Uses processedYaw/Pitch/Roll (degrees, standard convention) directly —
-    // the sign negation on yaw is DL2-specific and doesn't apply to the neck model.
-    {
-        cameraunlock::NeckModelSettings neckSettings;  // defaults: height=0.10, forward=0.08
-        cameraunlock::math::Quat4 headRotQ = cameraunlock::math::Quat4::FromYawPitchRoll(
-            processedYaw, processedPitch, processedRoll);
-        cameraunlock::math::Vec3 neckOffset = cameraunlock::NeckModel::ComputeOffset(headRotQ, neckSettings);
-
-        // Map core lib convention (x=right, y=up, z=forward) to DL2 (X=fwd, Y=up, Z=left)
-        // core.z (forward) → flatFwd, core.x (right) → -left, core.y (up) → Y
-        myPos[0] += flatFwdX * neckOffset.z - leftX * neckOffset.x;
-        myPos[1] += neckOffset.y;
-        myPos[2] += flatFwdZ * neckOffset.z - leftZ * neckOffset.x;
-    }
 
     // Apply 6DOF position offset in horizon-locked space
     float posOffX, posOffY, posOffZ;

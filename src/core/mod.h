@@ -69,7 +69,7 @@ private:
     float m_lastDeltaTime = 0.016f;  // cached for GetPositionOffset to reuse
 
     // Cached rotation from last GetProcessedRotation
-    // Used by GetPositionOffset (neck model) and to prevent re-processing
+    // Used by GetPositionOffset and to prevent re-processing
     // when MoveCameraHook fires multiple times per frame (shadows, reflections, etc.)
     float m_cachedYaw = 0.0f;
     float m_cachedPitch = 0.0f;
