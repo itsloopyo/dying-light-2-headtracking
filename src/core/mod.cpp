@@ -53,6 +53,9 @@ bool Mod::Initialize() {
     // Initialize reticle state
     m_reticleEnabled = m_config.reticleEnabled;
 
+    // Initialize yaw rotation frame from config
+    m_worldLockedYaw.store(m_config.worldLockedYaw);
+
     // Initialize position processor (6DOF)
     m_positionEnabled = m_config.positionEnabled;
     cameraunlock::PositionSettings posSettings(
@@ -283,6 +286,22 @@ void Mod::TogglePosition() {
     Logger::Instance().Info("Position tracking %s", m_positionEnabled ? "enabled" : "disabled");
     if (m_config.showNotifications) {
         ShowNotification(m_positionEnabled ? "Position Tracking: ON" : "Position Tracking: OFF");
+    }
+}
+
+void Mod::ToggleYawMode() {
+    bool nowWorldLocked = !m_worldLockedYaw.load();
+    m_worldLockedYaw.store(nowWorldLocked);
+    m_config.worldLockedYaw = nowWorldLocked;
+
+    // Persist so the mode survives a relaunch.
+    std::string configPath = GetModulePath("HeadTracking.ini");
+    m_config.Save(configPath.c_str());
+
+    const char* label = nowWorldLocked ? "WorldLocked" : "CameraLocal";
+    Logger::Instance().Info("Yaw mode: %s", label);
+    if (m_config.showNotifications) {
+        ShowNotification(nowWorldLocked ? "Yaw Mode: World-Locked" : "Yaw Mode: Camera-Local");
     }
 }
 

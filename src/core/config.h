@@ -17,7 +17,11 @@ struct Config {
     int toggleKey = DEFAULT_TOGGLE_KEY;
     int recenterKey = DEFAULT_RECENTER_KEY;
     int positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
+    int yawModeKey = DEFAULT_YAW_MODE_KEY;
     int reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
+
+    // Rotation settings
+    bool worldLockedYaw = DEFAULT_WORLD_LOCKED_YAW;
 
     // Position settings (6DOF)
     float positionSensitivityX = 2.0f;

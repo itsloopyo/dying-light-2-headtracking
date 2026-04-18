@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "rotation_math.h"
 #include <cameraunlock/protocol/udp_receiver.h>
 #include <cameraunlock/processing/tracking_processor.h>
 #include <cameraunlock/processing/pose_interpolator.h>
@@ -22,7 +23,12 @@ public:
 
     void Recenter();
     void TogglePosition();
+    void ToggleYawMode();
     void ToggleReticle();
+
+    YawMode GetYawMode() const {
+        return m_worldLockedYaw.load() ? YawMode::WorldLocked : YawMode::CameraLocal;
+    }
 
     Config& GetConfig() { return m_config; }
     const Config& GetConfig() const { return m_config; }
@@ -63,6 +69,9 @@ private:
 
     // Reticle overlay
     bool m_reticleEnabled = true;
+
+    // Yaw rotation frame (PgDn / Ctrl+Shift+H toggles)
+    std::atomic<bool> m_worldLockedYaw{false};
 
     // Timing for frame-rate independent processing
     uint64_t m_lastProcessTime = 0;

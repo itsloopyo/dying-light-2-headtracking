@@ -75,4 +75,29 @@ std::string FormatHotkeyConfig(int toggleKey, int recenterKey) {
     return ss.str();
 }
 
+bool DetectEdge(int vkCode, std::atomic<bool>& downState) {
+    bool pressed = (GetAsyncKeyState(vkCode) & 0x8000) != 0;
+    if (pressed && !downState.load()) {
+        downState.store(true);
+        return true;
+    }
+    if (!pressed && downState.load()) {
+        downState.store(false);
+    }
+    return false;
+}
+
+bool DetectChordEdge(int letterVk, std::atomic<bool>& downState, bool chordActive) {
+    bool letterPressed = (GetAsyncKeyState(letterVk) & 0x8000) != 0;
+    bool pressed = letterPressed && chordActive;
+    if (pressed && !downState.load()) {
+        downState.store(true);
+        return true;
+    }
+    if (!pressed && downState.load()) {
+        downState.store(false);
+    }
+    return false;
+}
+
 } // namespace DL2HT

@@ -22,7 +22,10 @@ void Config::SetDefaults() {
     toggleKey = DEFAULT_TOGGLE_KEY;
     recenterKey = DEFAULT_RECENTER_KEY;
     positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
+    yawModeKey = DEFAULT_YAW_MODE_KEY;
     reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
+
+    worldLockedYaw = DEFAULT_WORLD_LOCKED_YAW;
 
     positionSensitivityX = 2.0f;
     positionSensitivityY = 2.0f;
@@ -95,8 +98,14 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->recenterKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "PositionToggleKey")) {
         config->positionToggleKey = static_cast<int>(strtol(value, nullptr, 0));
+    } else if (MATCH("Hotkeys", "YawModeKey")) {
+        config->yawModeKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "ReticleToggleKey")) {
         config->reticleToggleKey = static_cast<int>(strtol(value, nullptr, 0));
+    }
+    // Rotation section
+    else if (MATCH("Rotation", "WorldLockedYaw")) {
+        config->worldLockedYaw = (strcmp(value, "true") == 0 || atoi(value) == 1);
     }
     // Position section
     else if (MATCH("Position", "SensitivityX")) {
@@ -202,7 +211,12 @@ bool Config::Save(const char* path) const {
     file << "ToggleKey=0x" << std::hex << toggleKey << "    ; End - Enable/disable\n";
     file << "RecenterKey=0x" << std::hex << recenterKey << "  ; Home - Recenter view\n";
     file << "PositionToggleKey=0x" << std::hex << positionToggleKey << " ; Page Up - Toggle position\n";
+    file << "YawModeKey=0x" << std::hex << yawModeKey << " ; Page Down - Toggle yaw mode\n";
     file << "ReticleToggleKey=0x" << std::hex << reticleToggleKey << "  ; Insert - Toggle reticle\n\n";
+
+    file << "[Rotation]\n";
+    file << "; Yaw rotation frame. false = camera-local (default); true = world-up (horizon-locked).\n";
+    file << "WorldLockedYaw=" << (worldLockedYaw ? "true" : "false") << "\n\n";
 
     file << "[Reticle]\n";
     file << "; Show the head tracking reticle overlay\n";

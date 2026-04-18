@@ -7,6 +7,13 @@ namespace DL2HT {
 // Minimum angle threshold for rotation (avoids unnecessary computation)
 static constexpr float ROTATION_THRESHOLD = 0.001f;
 
+// Yaw rotation reference frame.
+// CameraLocal: yaw around the camera's own up axis (default). When pitched,
+//   yawing sweeps a cone around head-up and tilts the horizon.
+// WorldLocked: yaw around world-up (DL2 Y axis). The horizon stays level;
+//   looking down and yawing sweeps horizontally around world vertical.
+enum class YawMode { CameraLocal, WorldLocked };
+
 // 3D vector type for clarity
 struct Vec3 {
     float x, y, z;
@@ -149,7 +156,8 @@ struct Quat {
 // Roll is composed on top as rotation around the original forward axis.
 //
 // DL2 coordinate system: X=forward, Y=up, Z=left
-inline void ApplyHeadTrackingRotation(float* fwdArr, float* upArr, float yaw, float pitch, float roll) {
+inline void ApplyHeadTrackingRotation(float* fwdArr, float* upArr, float yaw, float pitch, float roll,
+                                      YawMode mode = YawMode::CameraLocal) {
     Vec3 fwd(fwdArr);
     Vec3 up(upArr);
 
@@ -158,8 +166,39 @@ inline void ApplyHeadTrackingRotation(float* fwdArr, float* upArr, float yaw, fl
         fabsf(roll) < ROTATION_THRESHOLD)
         return;
 
-    // Target direction from spherical coordinates in camera-local frame:
-    //   targetFwd = cos(p)*cos(y)*fwd + cos(p)*sin(y)*right - sin(p)*up
+    if (mode == YawMode::WorldLocked) {
+        // M'' = R_pitchroll * M * R_yaw, mirroring resident-evil-requiem's
+        // camera_hook.cpp. Yaw around world-up is pre-applied to every basis
+        // vector (keeps horizon level). Pitch and roll then compose in the
+        // *post-yaw local frame*: pitch around the rebuilt right-axis (which
+        // stays horizontal when the game camera isn't rolling), roll around
+        // the post-yaw forward. An earlier version derived pitch from
+        // (cosP*fwdY - sinP*upY), which tilted the pitch plane by whatever
+        // pitch the game had already baked into `up` and broke looking up/down.
+        const Vec3 worldUp(0.0f, 1.0f, 0.0f);
+
+        Quat yawQ = Quat::FromAxisAngle(worldUp, yaw);
+        Vec3 fwdY = yawQ.Rotate(fwd);
+        Vec3 upY = yawQ.Rotate(up);
+        Vec3 rightY = upY.Cross(fwdY).Normalized();
+
+        // qPR = pitchQ * rollQ: roll is applied first (around post-yaw fwd),
+        // then pitch (around post-yaw right). Matches RE:Requiem's qx * qz
+        // intrinsic-YXZ composition.
+        Quat pitchQ = Quat::FromAxisAngle(rightY, pitch);
+        Quat rollQ = Quat::FromAxisAngle(fwdY, roll);
+        Quat prQ = pitchQ * rollQ;
+
+        fwd = prQ.Rotate(fwdY);
+        up = prQ.Rotate(upY);
+
+        fwd.ToArray(fwdArr);
+        up.ToArray(upArr);
+        return;
+    }
+
+    // Camera-local: spherical target in the camera's own frame, then
+    // shortest-arc to align + roll around original fwd.
     Vec3 right = up.Cross(fwd).Normalized();
     float cosY = cosf(yaw), sinY = sinf(yaw);
     float cosP = cosf(pitch), sinP = sinf(pitch);
@@ -170,9 +209,6 @@ inline void ApplyHeadTrackingRotation(float* fwdArr, float* upArr, float yaw, fl
         cosP*cosY*fwd.z + cosP*sinY*right.z - sinP*up.z
     ).Normalized();
 
-    // Shortest-arc quaternion from fwd to targetFwd, then roll around fwd.
-    // The intrinsic composition qDir * qRoll applies the direction change
-    // first, then rolls in the resulting frame.
     Quat q = Quat::ShortestArc(fwd, targetFwd)
            * Quat::FromAxisAngle(fwd, roll);
 

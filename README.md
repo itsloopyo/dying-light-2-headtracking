@@ -71,12 +71,38 @@ This mod includes built-in smoothing to handle network jitter, so if your tracki
 
 ## Controls
 
-| Key         | Action                          |
-|-------------|---------------------------------|
-| **End**     | Toggle head tracking on/off     |
-| **Home**    | Recenter view                   |
-| **Page Up** | Toggle position tracking on/off |
-| **Insert**  | Toggle reticle on/off           |
+| Key           | Action                                                   |
+|---------------|----------------------------------------------------------|
+| **End**       | Toggle head tracking on/off                              |
+| **Home**      | Recenter view                                            |
+| **Page Up**   | Toggle position tracking on/off                          |
+| **Page Down** | Toggle yaw mode (camera-local / world-locked)            |
+| **Insert**    | Toggle reticle on/off                                    |
+
+### Chord alternatives
+
+For keyboards without a nav cluster (60%/TKL laptops), every action is also
+bound to a `Ctrl+Shift+<letter>` chord drawn from the T/Y/U/G/H/J block:
+
+| Chord              | Action                   |
+|--------------------|--------------------------|
+| **Ctrl+Shift+T**   | Recenter view            |
+| **Ctrl+Shift+Y**   | Toggle head tracking     |
+| **Ctrl+Shift+G**   | Toggle position tracking |
+| **Ctrl+Shift+H**   | Toggle yaw mode          |
+| **Ctrl+Shift+U**   | Toggle reticle           |
+
+### Yaw mode
+
+- **Camera-local** (default): yaw rotates around your head's up axis. When
+  you pitch the view down and yaw, the horizon tilts and the view sweeps a
+  cone. Matches traditional head-tracked FPS feel.
+- **World-locked**: yaw rotates around the world's vertical axis. Pitch
+  down and yaw - the horizon stays level and the view sweeps horizontally.
+  Preferable if you find the default disorienting.
+
+Your choice is remembered across sessions (written back to
+`HeadTracking.ini`).
 
 ## Configuration
 
@@ -108,7 +134,11 @@ Enabled=true              ; Enable/disable positional tracking (set false for 3D
 ToggleKey=0x23            ; End key (VK code in hex)
 RecenterKey=0x24          ; Home key (VK code in hex)
 PositionToggleKey=0x21    ; Page Up key (VK code in hex)
+YawModeKey=0x22           ; Page Down key - toggles camera-local / world-locked yaw
 ReticleToggleKey=0x2d     ; Insert key (VK code in hex)
+
+[Rotation]
+WorldLockedYaw=false      ; false = camera-local (default), true = world-up yaw
 
 [Reticle]
 Enabled=true              ; Show/hide the head tracking reticle overlay

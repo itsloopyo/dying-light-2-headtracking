@@ -321,7 +321,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     float myFwd[4] = { fwdIn[0], fwdIn[1], fwdIn[2], 0 };
     float myUp[4] = { upIn[0], upIn[1], upIn[2], 0 };
 
-    ApplyHeadTrackingRotation(myFwd, myUp, yaw, pitch, roll);
+    ApplyHeadTrackingRotation(myFwd, myUp, yaw, pitch, roll, Mod::Instance().GetYawMode());
 
     // Compute horizon-locked basis from original forward (used by 6DOF position offset)
     // DL2 coords: X=forward, Y=up, Z=left
