@@ -14,6 +14,10 @@ Release/
 *.exp
 *.ilk
 
+# Vendored third-party binaries (overrides *.dll/*.exe above)
+!vendor/**/*.dll
+!vendor/**/*.exe
+
 # CMake
 CMakeCache.txt
 CMakeFiles/

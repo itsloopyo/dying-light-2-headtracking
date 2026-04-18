@@ -274,31 +274,24 @@ for %%d in (%SEARCH_DIRS%) do (
 exit /b 1
 
 :: ============================================
-:: Install Ultimate ASI Loader
+:: Install Ultimate ASI Loader (bundled, MIT-licensed, v9.7.1 upstream)
 :: ============================================
 :install_asi_loader
-set "ASI_URL=https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/x64-latest/Ultimate-ASI-Loader_x64.zip"
-set "ASI_ZIP=%TEMP%\ASILoader_install.zip"
+set "ASI_SRC=%SCRIPT_DIR%vendor\ultimate-asi-loader\dinput8.dll"
 
-echo   Downloading Ultimate ASI Loader...
-curl -fL -o "%ASI_ZIP%" "%ASI_URL%"
-if errorlevel 1 (
-    echo   ERROR: Download failed. Check your internet connection.
+if not exist "%ASI_SRC%" (
+    echo   ERROR: Bundled ASI loader missing at:
+    echo     %ASI_SRC%
+    echo   The installer ZIP is corrupt. Re-download the release.
     exit /b 1
 )
 
-echo   Extracting to game directory...
-tar -xf "%ASI_ZIP%" -C "%EXE_DIR%"
+echo   Installing Ultimate ASI Loader v9.7.1 from bundled copy...
+copy /y "%ASI_SRC%" "%EXE_DIR%\winmm.dll" >nul
 if errorlevel 1 (
-    echo   ERROR: Extraction failed.
-    del "%ASI_ZIP%" 2>nul
+    echo   ERROR: Failed to copy loader to %EXE_DIR%.
+    echo   Check the game directory is writable.
     exit /b 1
-)
-del "%ASI_ZIP%" 2>nul
-
-:: Rename dinput8.dll to winmm.dll (DL2 compatibility)
-if exist "%EXE_DIR%\dinput8.dll" (
-    move /y "%EXE_DIR%\dinput8.dll" "%EXE_DIR%\winmm.dll" >nul
 )
 
 :: Write state file marking that we installed ASI loader

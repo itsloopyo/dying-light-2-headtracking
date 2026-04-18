@@ -20,35 +20,18 @@ if ($LASTEXITCODE -ne 0) {
 $targetDir = Join-Path $gamePath "ph\work\bin\x64"
 Write-Host "Target directory: $targetDir" -ForegroundColor Gray
 
-# Check for ASI loader - auto-install if missing
+# Check for ASI loader - copy from bundled vendor dir if missing
 $asiLoader = Join-Path $targetDir "winmm.dll"
 if (-not (Test-Path $asiLoader)) {
-    Write-Host "ASI Loader not found. Installing..." -ForegroundColor Yellow
+    Write-Host "ASI Loader not found. Installing from bundled copy..." -ForegroundColor Yellow
 
-    $asiUrl = "https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/v9.7.0/Ultimate-ASI-Loader_x64.zip"
-    $asiZip = Join-Path $env:TEMP "ASILoader_install.zip"
-
-    Write-Host "  Downloading Ultimate ASI Loader (v9.7.0)..." -ForegroundColor Gray
-    curl.exe -fL -o $asiZip $asiUrl
-    if ($LASTEXITCODE -ne 0) {
-        throw "ASI Loader download failed. Check your internet connection."
+    $bundledAsi = Join-Path $projectDir "vendor\ultimate-asi-loader\dinput8.dll"
+    if (-not (Test-Path $bundledAsi)) {
+        throw "Bundled ASI loader missing: $bundledAsi"
     }
 
-    Write-Host "  Extracting to game directory..." -ForegroundColor Gray
-    Expand-Archive -Path $asiZip -DestinationPath $targetDir -Force
-    Remove-Item $asiZip -ErrorAction SilentlyContinue
-
-    # Rename dinput8.dll to winmm.dll (DL2 compatibility)
-    $dinput = Join-Path $targetDir "dinput8.dll"
-    if (Test-Path $dinput) {
-        Move-Item $dinput $asiLoader -Force
-    }
-
-    if (-not (Test-Path $asiLoader)) {
-        throw "ASI Loader install failed: winmm.dll not found after extraction."
-    }
-
-    Write-Host "  Ultimate ASI Loader installed!" -ForegroundColor Green
+    Copy-Item $bundledAsi $asiLoader -Force
+    Write-Host "  Ultimate ASI Loader v9.7.1 installed!" -ForegroundColor Green
 }
 
 # Source files

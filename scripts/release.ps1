@@ -129,6 +129,15 @@ Set-Version $Version
 $installCmdPath = Join-Path $scriptDir "install.cmd"
 (Get-Content $installCmdPath -Raw) -replace 'set "MOD_VERSION=.*?"', "set `"MOD_VERSION=$Version`"" | Set-Content $installCmdPath -NoNewline
 
+# launcher-manifest.json carries its own mod_info.version used by external
+# installer tooling; keep it in lockstep with manifest.json.
+$launcherManifestPath = Join-Path $projectDir "launcher-manifest.json"
+if (Test-Path $launcherManifestPath) {
+    $launcherJson = Get-Content $launcherManifestPath -Raw | ConvertFrom-Json
+    $launcherJson.mod_info.version = $Version
+    $launcherJson | ConvertTo-Json -Depth 10 | Set-Content $launcherManifestPath -NoNewline
+}
+
 # Step 2: Generate CHANGELOG
 Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
@@ -157,6 +166,7 @@ if (-not $hasExistingTags) {
 # Step 3: Commit
 Write-Host "Committing version change..." -ForegroundColor Cyan
 git add $manifestPath $changelogPath $installCmdPath
+if (Test-Path $launcherManifestPath) { git add $launcherManifestPath }
 git commit -m "Release v$Version"
 
 # Step 3: Create tag

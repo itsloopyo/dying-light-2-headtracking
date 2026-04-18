@@ -39,6 +39,17 @@ if (-not (Test-Path $iniPath)) {
     throw "HeadTracking.ini not found at: $iniPath"
 }
 
+$vendorAsiDir = Join-Path $projectDir "vendor/ultimate-asi-loader"
+$vendorAsiDll = Join-Path $vendorAsiDir "dinput8.dll"
+if (-not (Test-Path $vendorAsiDll)) {
+    throw "Bundled ASI loader missing: $vendorAsiDll"
+}
+
+$launcherManifestPath = Join-Path $projectDir "launcher-manifest.json"
+if (-not (Test-Path $launcherManifestPath)) {
+    throw "launcher-manifest.json not found at: $launcherManifestPath"
+}
+
 $scriptsDir = Join-Path $projectDir "scripts"
 foreach ($script in @("install.cmd", "uninstall.cmd")) {
     $scriptPath = Join-Path $scriptsDir $script
@@ -62,6 +73,11 @@ foreach ($script in @("install.cmd", "uninstall.cmd")) {
     Write-Host "  $script" -ForegroundColor Green
 }
 
+# Launcher manifest: external installer tooling reads this to drive
+# install/uninstall without shelling into install.cmd.
+Copy-Item $launcherManifestPath -Destination $ghStagingDir -Force
+Write-Host "  launcher-manifest.json" -ForegroundColor Green
+
 # Copy mod files to plugins subfolder
 $pluginsDir = Join-Path $ghStagingDir "plugins"
 New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
@@ -72,8 +88,20 @@ Write-Host "  plugins/DL2HeadTracking.asi" -ForegroundColor Green
 Copy-Item $iniPath -Destination $pluginsDir -Force
 Write-Host "  plugins/HeadTracking.ini" -ForegroundColor Green
 
+# Bundle Ultimate ASI Loader (MIT, see THIRD-PARTY-NOTICES.md) so install.cmd
+# has no GitHub dependency at install time.
+$ghVendorDir = Join-Path $ghStagingDir "vendor/ultimate-asi-loader"
+New-Item -ItemType Directory -Path $ghVendorDir -Force | Out-Null
+foreach ($vendorFile in @("dinput8.dll", "LICENSE", "README.md")) {
+    $src = Join-Path $vendorAsiDir $vendorFile
+    if (Test-Path $src) {
+        Copy-Item $src -Destination $ghVendorDir -Force
+        Write-Host "  vendor/ultimate-asi-loader/$vendorFile" -ForegroundColor Green
+    }
+}
+
 # Copy documentation
-$docFiles = @("README.md", "LICENSE", "CHANGELOG.md", "THIRD_PARTY_LICENSES.md")
+$docFiles = @("README.md", "LICENSE", "CHANGELOG.md", "THIRD-PARTY-NOTICES.md")
 foreach ($doc in $docFiles) {
     $docPath = Join-Path $projectDir $doc
     if (Test-Path $docPath) {
@@ -120,6 +148,12 @@ Write-Host "  ph/work/bin/x64/DL2HeadTracking.asi" -ForegroundColor Green
 
 Copy-Item $iniPath -Destination $nexusGameDir -Force
 Write-Host "  ph/work/bin/x64/HeadTracking.ini" -ForegroundColor Green
+
+# Nexus users extract to the game dir, no install.cmd runs - ship the ASI
+# loader pre-named as winmm.dll so it lands where DL2 will load it from.
+$nexusWinmm = Join-Path $nexusGameDir "winmm.dll"
+Copy-Item $vendorAsiDll -Destination $nexusWinmm -Force
+Write-Host "  ph/work/bin/x64/winmm.dll (Ultimate ASI Loader v9.7.1, MIT)" -ForegroundColor Green
 
 $nexusZipName = "DL2HeadTracking-v$version-nexus.zip"
 $nexusZipPath = Join-Path $releaseDir $nexusZipName
