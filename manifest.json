@@ -1,7 +1,7 @@
 {
     "name":  "DL2HeadTracking",
     "author":  "Loop",
-    "version":  "1.0.4",
+    "version":  "1.0.5",
     "description":  "3DOF head tracking for Dying Light 2 via OpenTrack using CameraUnlock shared library",
     "game":  "Dying Light 2 Stay Human",
     "gameVersion":  "1.16+",

@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.5] - 2026-04-18
+
+### Added
+
+- add Page Down yaw-mode toggle and Ctrl+Shift chord hotkeys
+
+### Fixed
+
+- install.cmd works on Program Files (x86) paths
+- bundle Ultimate ASI Loader and ship launcher-manifest.json in installer
+
+### Other
+
+- Rework crosshair projection to inline tangent-space math from head-tracked camera vectors
+
 ## [1.0.4] - 2026-03-13
 
 ### Other

@@ -1,12 +1,12 @@
 {
-  "schema_version": 1,
-  "mod_info": {
-    "name": "DL2HeadTracking",
-    "version": "0.0.0",
-    "game_id": "dying-light-2"
-  },
-  "strategy": "AsiLoader",
-  "delivery_mode": "install_cmd",
-  "install_script": "install.cmd",
-  "uninstall_script": "uninstall.cmd"
+    "schema_version":  1,
+    "mod_info":  {
+                     "name":  "DL2HeadTracking",
+                     "version":  "1.0.5",
+                     "game_id":  "dying-light-2"
+                 },
+    "strategy":  "AsiLoader",
+    "delivery_mode":  "install_cmd",
+    "install_script":  "install.cmd",
+    "uninstall_script":  "uninstall.cmd"
 }
