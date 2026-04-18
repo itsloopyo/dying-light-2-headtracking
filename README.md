@@ -1,6 +1,6 @@
 # Dying Light 2 Head Tracking
 
-![Mod GIF](assets/readme-clip.gif)
+![Mod GIF](https://raw.githubusercontent.com/itsloopyo/dying-light-2-headtracking/main/assets/readme-clip.gif)
 
 An **unofficial** 6DOF head tracking mod for Dying Light 2 Stay Human using OpenTrack-compatible trackers.
 
