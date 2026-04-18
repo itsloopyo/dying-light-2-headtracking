@@ -6,15 +6,13 @@ namespace DL2HT {
 bool InstallDXHook();
 void RemoveDXHook();
 
-// Update crosshair offset based on head tracking (degrees)
-// Positive yaw = looking right, crosshair appears left
-// Positive pitch = looking up, crosshair appears down
-// Roll is used to rotate the yaw/pitch offsets in screen space
-void SetCrosshairOffset(float yaw, float pitch, float roll);
-
-// Set the game camera's base pitch (from gamepad/mouse look, before head tracking)
-// This is needed for correct reticle projection when looking up/down
-void SetGameCameraPitch(float pitchRadians);
+// Set the crosshair's aim-point projection in tangent space.
+// tanRight/tanUp are the tangent of the angle between the head-tracked
+// camera center and the aim point, computed from actual camera vectors
+// in MoveCameraHook (matching the Subnautica VP-projection approach).
+//   tanRight > 0 = aim is to the right of camera center
+//   tanUp    > 0 = aim is above camera center
+void SetCrosshairProjection(float tanRight, float tanUp);
 
 // Set field of view in degrees (detected from engine camera)
 void SetCrosshairFOV(float fovDegrees);

@@ -251,20 +251,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         }
     }
 
-    // Extract game camera pitch from forward vector (before head tracking)
-    // This must happen before early return so crosshair projection always has valid data
-    // DL2 coordinate system: X=forward, Y=up, Z=left
-    // Pitch = angle from horizontal plane, positive = looking down
-    // forward.Y = -sin(pitch), so pitch = asin(-forward.Y)
     float* fwdIn = (float*)forward;
-    if (fwdIn) {
-        float fwdY = fwdIn[1];
-        // Clamp to valid asin range to prevent NaN
-        if (fwdY < -1.0f) fwdY = -1.0f;
-        if (fwdY > 1.0f) fwdY = 1.0f;
-        float gamePitch = asinf(-fwdY);
-        SetGameCameraPitch(gamePitch);
-    }
 
     // Skip head tracking if not in gameplay (menu, loading, paused, post-load warmup)
     {
@@ -303,9 +290,6 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         return;
     }
 
-    // Update crosshair with same processed values (read by DX Present for rendering)
-    SetCrosshairOffset(processedYaw, processedPitch, processedRoll);
-
     // Read live FOV from the camera object for accurate crosshair projection
     if (g_gameState.pGetFOVFunc) {
         __try {
@@ -327,6 +311,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     // Skip if no significant rotation
     if (fabsf(yaw) < ROTATION_THRESHOLD && fabsf(pitch) < ROTATION_THRESHOLD && fabsf(roll) < ROTATION_THRESHOLD) {
+        SetCrosshairProjection(0, 0);
         ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
         return;
     }
@@ -339,7 +324,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     ApplyHeadTrackingRotation(myFwd, myUp, yaw, pitch, roll);
 
     // Compute horizon-locked basis from original forward (used by 6DOF position offset)
-    // DL2 left-handed coords: X=forward, Y=up, Z=left
+    // DL2 coords: X=forward, Y=up, Z=left
     float* posIn = (float*)position;
     float myPos[4] = { posIn[0], posIn[1], posIn[2], posIn[3] };
 
@@ -350,19 +335,56 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         flatFwdX /= flatLen;
         flatFwdZ /= flatLen;
     }
-    // Left vector in XZ plane: (-flatFwdZ, flatFwdX)
     float leftX = -flatFwdZ;
     float leftZ = flatFwdX;
 
     // Apply 6DOF position offset in horizon-locked space
     float posOffX, posOffY, posOffZ;
     if (Mod::Instance().GetPositionOffset(posOffX, posOffY, posOffZ)) {
-        // Map tracker axes to game directions:
-        // posOffZ → forward/back, posOffX → lateral (right positive)
-        // -left * posOffX: positive tracker X (head right) → negative left → RIGHT in game
-        myPos[0] += flatFwdX * posOffZ + leftX * posOffX;
-        myPos[1] += posOffY;
-        myPos[2] += flatFwdZ * posOffZ + leftZ * posOffX;
+        float dWorldX = flatFwdX * posOffZ + leftX * posOffX;
+        float dWorldY = posOffY;
+        float dWorldZ = flatFwdZ * posOffZ + leftZ * posOffX;
+
+        myPos[0] += dWorldX;
+        myPos[1] += dWorldY;
+        myPos[2] += dWorldZ;
+    }
+
+    // --- Crosshair projection (Subnautica approach) ---
+    // Project the aim world-point through the actual head-tracked camera,
+    // exactly like Subnautica's ReticleCompensation:
+    //   toAim = aimWorldPoint - headTrackedCameraPos
+    //   project toAim onto head-tracked camera axes
+    //   perspective divide → tangent-space offset
+    //
+    // This naturally handles both rotation and position because we use
+    // the ACTUAL modified camera vectors, not a reconstruction from angles.
+    {
+        // toAim = originalPos + D * originalFwd - headTrackedPos
+        //       = D * originalFwd - (headTrackedPos - originalPos)
+        // The position delta is (myPos - posIn) in world space.
+        static constexpr float kAimDistance = 3.0f;
+        float toAimX = kAimDistance * fwdIn[0] + (myPos[0] - posIn[0]);
+        float toAimY = kAimDistance * fwdIn[1] + (myPos[1] - posIn[1]);
+        float toAimZ = kAimDistance * fwdIn[2] + (myPos[2] - posIn[2]);
+
+        // Head-tracked camera left axis = cross(myFwd, myUp)
+        float headLeftX = myFwd[1]*myUp[2] - myFwd[2]*myUp[1];
+        float headLeftY = myFwd[2]*myUp[0] - myFwd[0]*myUp[2];
+        float headLeftZ = myFwd[0]*myUp[1] - myFwd[1]*myUp[0];
+
+        // Project toAim onto head-tracked camera axes
+        float bDepth = toAimX*myFwd[0]    + toAimY*myFwd[1]    + toAimZ*myFwd[2];
+        float bUp    = toAimX*myUp[0]     + toAimY*myUp[1]     + toAimZ*myUp[2];
+        float bLeft  = toAimX*headLeftX   + toAimY*headLeftY   + toAimZ*headLeftZ;
+
+        if (bDepth > 0.01f) {
+            // DL2's engine forward convention inverts the projection —
+            // empirically verified: positive bLeft → screen right, negative bUp → screen up.
+            SetCrosshairProjection(bLeft / bDepth, -bUp / bDepth);
+        } else {
+            SetCrosshairProjection(0, 0);
+        }
     }
 
     ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, myFwd, myUp, myPos);

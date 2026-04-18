@@ -11,7 +11,6 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx12.h"
 #include "kiero.h"
-#include <cameraunlock/rendering/crosshair_projection.h>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -66,12 +65,14 @@ struct DX12State {
 };
 
 // Crosshair state - atomic values for thread-safe access
-// Using relaxed memory ordering - single producer (UpdateTrackingData) / single consumer (DrawCrosshair)
+// Using relaxed memory ordering - single producer (MoveCameraHook) / single consumer (DrawCrosshair)
 struct CrosshairState {
-    std::atomic<float> yawOffset{0.0f};
-    std::atomic<float> pitchOffset{0.0f};
-    std::atomic<float> rollOffset{0.0f};
-    std::atomic<float> gameCameraPitch{0.0f};  // Game camera pitch (radians) from gamepad/mouse
+    // Tangent-space aim projection, computed from actual camera vectors in MoveCameraHook.
+    // This matches the Subnautica approach: project the aim world-point through the
+    // head-tracked camera, producing a result that naturally handles both rotation
+    // and position offset without decomposition or sign ambiguity.
+    std::atomic<float> tanRight{0.0f};   // tan(angle right of center), positive = right
+    std::atomic<float> tanUp{0.0f};      // tan(angle above center), positive = up
     std::atomic<float> fovDegrees{DEFAULT_FOV_DEG};  // Live FOV from engine camera
     std::atomic<bool> enabled{false};
 
@@ -101,37 +102,38 @@ static void UpdateTrackingData() {
 // Disable optimization for DrawCrosshair to work around MSVC 2022 internal compiler error
 #pragma optimize("", off)
 static void DrawCrosshair(float screenWidth, float screenHeight) {
-    // Use relaxed ordering - these values are written by UpdateTrackingData and read here
-    // No synchronization needed, just visibility of latest values
     if (!g_crosshair.enabled.load(std::memory_order_relaxed)) return;
-
-    // Only show crosshair during gameplay (not menus, cutscenes, loading)
     if (!IsInGameplay()) return;
 
     ImDrawList* drawList = ImGui::GetBackgroundDrawList();
     if (!drawList) return;
 
-    // Use core library for crosshair projection
-    // Batch atomic loads with relaxed ordering for minimal overhead
-    cameraunlock::rendering::CrosshairProjectionParams params;
-    params.screenWidth = screenWidth;
-    params.screenHeight = screenHeight;
-    params.fovDegrees = g_crosshair.fovDegrees.load(std::memory_order_relaxed);
-    params.yawOffset = g_crosshair.yawOffset.load(std::memory_order_relaxed);
-    params.pitchOffset = g_crosshair.pitchOffset.load(std::memory_order_relaxed);
-    params.rollOffset = g_crosshair.rollOffset.load(std::memory_order_relaxed);
-    params.gameCameraPitch = g_crosshair.gameCameraPitch.load(std::memory_order_relaxed);
+    // Read tangent-space projection computed by MoveCameraHook.
+    // These are the tangent of the angle between camera center and aim point,
+    // computed from the actual head-tracked camera vectors (rotation + position).
+    float tanRight = g_crosshair.tanRight.load(std::memory_order_relaxed);
+    float tanUp = g_crosshair.tanUp.load(std::memory_order_relaxed);
+    float fovDeg = g_crosshair.fovDegrees.load(std::memory_order_relaxed);
 
-    cameraunlock::rendering::ScreenPosition pos = cameraunlock::rendering::ProjectCrosshair(params);
+    // Map tangent-space to screen coordinates
+    constexpr float kDegToRad = 0.0174532925f;
+    float aspectRatio = screenWidth / screenHeight;
+    float tanHalfHFov = std::tan(fovDeg * kDegToRad * 0.5f);
+    float tanHalfVFov = tanHalfHFov / aspectRatio;
 
-    if (!pos.valid) return;
+    float halfW = screenWidth * 0.5f;
+    float halfH = screenHeight * 0.5f;
+    float cx = halfW + (tanRight / tanHalfHFov) * halfW;
+    float cy = halfH - (tanUp / tanHalfVFov) * halfH;
 
     // Clamp to screen
     float margin = g_crosshair.dotSize + 10.0f;
-    cameraunlock::rendering::ClampToScreen(pos, screenWidth, screenHeight, margin);
+    if (cx < margin) cx = margin;
+    if (cx > screenWidth - margin) cx = screenWidth - margin;
+    if (cy < margin) cy = margin;
+    if (cy > screenHeight - margin) cy = screenHeight - margin;
 
-    // Simple white dot to match stock reticle
-    drawList->AddCircleFilled(ImVec2(pos.x, pos.y), g_crosshair.dotSize, g_crosshair.color);
+    drawList->AddCircleFilled(ImVec2(cx, cy), g_crosshair.dotSize, g_crosshair.color);
 }
 #pragma optimize("", on)
 
@@ -482,15 +484,9 @@ void RemoveDXHook() {
     Logger::Instance().Info("DX12 hook removed");
 }
 
-void SetCrosshairOffset(float yaw, float pitch, float roll) {
-    // Relaxed ordering - single producer, values just need to be visible eventually
-    g_crosshair.yawOffset.store(yaw, std::memory_order_relaxed);
-    g_crosshair.pitchOffset.store(pitch, std::memory_order_relaxed);
-    g_crosshair.rollOffset.store(roll, std::memory_order_relaxed);
-}
-
-void SetGameCameraPitch(float pitchRadians) {
-    g_crosshair.gameCameraPitch.store(pitchRadians, std::memory_order_relaxed);
+void SetCrosshairProjection(float tanRight, float tanUp) {
+    g_crosshair.tanRight.store(tanRight, std::memory_order_relaxed);
+    g_crosshair.tanUp.store(tanUp, std::memory_order_relaxed);
 }
 
 void SetCrosshairFOV(float fovDegrees) {
