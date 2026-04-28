@@ -42,6 +42,10 @@ clean-all = { cmd = """
 # Validate release readiness
 validate-release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/validate-release.ps1" }
 
+# Bump vendored mod-loader copies to latest upstream within pinned range.
+# Manual; commit the result. CI does not run this.
+update-deps = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1" }
+
 # Package release ZIP
 package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build-release"] }
 
