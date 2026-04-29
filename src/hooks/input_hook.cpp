@@ -10,7 +10,7 @@ namespace DL2HT {
 // Mapping kept in sync with README and with the CLAUDE.md hotkey spec.
 static constexpr int CHORD_RECENTER_VK = 0x54;         // T
 static constexpr int CHORD_TOGGLE_VK = 0x59;           // Y
-static constexpr int CHORD_POSITION_TOGGLE_VK = 0x47;  // G
+static constexpr int CHORD_TRACKING_MODE_VK = 0x47;    // G - cycle tracking mode
 static constexpr int CHORD_YAW_MODE_VK = 0x48;         // H
 static constexpr int CHORD_RETICLE_TOGGLE_VK = 0x55;   // U
 
@@ -20,14 +20,14 @@ static std::atomic<bool> g_running{false};
 
 static std::atomic<int> g_toggleKey{DEFAULT_TOGGLE_KEY};
 static std::atomic<int> g_recenterKey{DEFAULT_RECENTER_KEY};
-static std::atomic<int> g_positionToggleKey{DEFAULT_POSITION_TOGGLE_KEY};
+static std::atomic<int> g_trackingModeKey{DEFAULT_TRACKING_MODE_KEY};
 static std::atomic<int> g_yawModeKey{DEFAULT_YAW_MODE_KEY};
 static std::atomic<int> g_reticleToggleKey{DEFAULT_RETICLE_TOGGLE_KEY};
 
 // Primary-key rising-edge state
 static std::atomic<bool> g_toggleKeyDown{false};
 static std::atomic<bool> g_recenterKeyDown{false};
-static std::atomic<bool> g_positionToggleKeyDown{false};
+static std::atomic<bool> g_trackingModeKeyDown{false};
 static std::atomic<bool> g_yawModeKeyDown{false};
 static std::atomic<bool> g_reticleToggleKeyDown{false};
 
@@ -35,7 +35,7 @@ static std::atomic<bool> g_reticleToggleKeyDown{false};
 // interfere with each other's debouncing)
 static std::atomic<bool> g_toggleChordDown{false};
 static std::atomic<bool> g_recenterChordDown{false};
-static std::atomic<bool> g_positionToggleChordDown{false};
+static std::atomic<bool> g_trackingModeChordDown{false};
 static std::atomic<bool> g_yawModeChordDown{false};
 static std::atomic<bool> g_reticleToggleChordDown{false};
 
@@ -70,14 +70,14 @@ static void InputPollingThread() {
             Mod::Instance().Recenter();
         }
 
-        int positionToggleKey = g_positionToggleKey.load();
-        if (DetectEdge(positionToggleKey, g_positionToggleKeyDown) && !chordActive) {
-            Logger::Instance().Debug("Position toggle key (%s) pressed", VirtualKeyToString(positionToggleKey));
-            Mod::Instance().TogglePosition();
+        int trackingModeKey = g_trackingModeKey.load();
+        if (DetectEdge(trackingModeKey, g_trackingModeKeyDown) && !chordActive) {
+            Logger::Instance().Debug("Tracking mode key (%s) pressed", VirtualKeyToString(trackingModeKey));
+            Mod::Instance().CycleTrackingMode();
         }
-        if (DetectChordEdge(CHORD_POSITION_TOGGLE_VK, g_positionToggleChordDown, chordActive)) {
-            Logger::Instance().Debug("Position toggle chord (Ctrl+Shift+G) pressed");
-            Mod::Instance().TogglePosition();
+        if (DetectChordEdge(CHORD_TRACKING_MODE_VK, g_trackingModeChordDown, chordActive)) {
+            Logger::Instance().Debug("Tracking mode chord (Ctrl+Shift+G) pressed");
+            Mod::Instance().CycleTrackingMode();
         }
 
         int yawModeKey = g_yawModeKey.load();
@@ -114,19 +114,19 @@ bool InstallInputHook() {
     const Config& config = Mod::Instance().GetConfig();
     g_toggleKey.store(config.toggleKey);
     g_recenterKey.store(config.recenterKey);
-    g_positionToggleKey.store(config.positionToggleKey);
+    g_trackingModeKey.store(config.trackingModeKey);
     g_yawModeKey.store(config.yawModeKey);
     g_reticleToggleKey.store(config.reticleToggleKey);
 
     g_toggleKeyDown.store(false);
     g_recenterKeyDown.store(false);
-    g_positionToggleKeyDown.store(false);
+    g_trackingModeKeyDown.store(false);
     g_yawModeKeyDown.store(false);
     g_reticleToggleKeyDown.store(false);
 
     g_toggleChordDown.store(false);
     g_recenterChordDown.store(false);
-    g_positionToggleChordDown.store(false);
+    g_trackingModeChordDown.store(false);
     g_yawModeChordDown.store(false);
     g_reticleToggleChordDown.store(false);
 

@@ -16,7 +16,7 @@ struct Config {
     // Hotkeys (Virtual Key codes)
     int toggleKey = DEFAULT_TOGGLE_KEY;
     int recenterKey = DEFAULT_RECENTER_KEY;
-    int positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
+    int trackingModeKey = DEFAULT_TRACKING_MODE_KEY;  // Page Up - cycles tracking mode (legacy INI key: PositionToggleKey)
     int yawModeKey = DEFAULT_YAW_MODE_KEY;
     int reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
 

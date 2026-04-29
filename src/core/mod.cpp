@@ -56,8 +56,10 @@ bool Mod::Initialize() {
     // Initialize yaw rotation frame from config
     m_worldLockedYaw.store(m_config.worldLockedYaw);
 
-    // Initialize position processor (6DOF)
-    m_positionEnabled = m_config.positionEnabled;
+    // Initialize position processor (6DOF). The config flag seeds the
+    // tracking-mode cycle: positionEnabled=true starts in mode 0 (normal),
+    // positionEnabled=false starts in mode 1 (rotation only).
+    m_trackingMode.store(m_config.positionEnabled ? 0 : 1);
     cameraunlock::PositionSettings posSettings(
         m_config.positionSensitivityX, m_config.positionSensitivityY, m_config.positionSensitivityZ,
         m_config.positionLimitX, m_config.positionLimitY, m_config.positionLimitZ, m_config.positionLimitZBack,
@@ -66,7 +68,7 @@ bool Mod::Initialize() {
     );
     m_positionProcessor.SetSettings(posSettings);
     Logger::Instance().Info("Position processor initialized (%s, sens=%.1f/%.1f/%.1f, limits=%.2f/%.2f/%.2f)",
-                            m_positionEnabled ? "6DOF" : "3DOF only",
+                            m_trackingMode.load() == 1 ? "3DOF only" : "6DOF",
                             posSettings.sensitivity_x, posSettings.sensitivity_y, posSettings.sensitivity_z,
                             posSettings.limit_x, posSettings.limit_y, posSettings.limit_z);
 
@@ -277,15 +279,41 @@ void Mod::ToggleReticle() {
     }
 }
 
-void Mod::TogglePosition() {
-    m_positionEnabled = !m_positionEnabled;
-    if (!m_positionEnabled) {
+void Mod::CycleTrackingMode() {
+    int next = (m_trackingMode.load() + 1) % 3;
+    m_trackingMode.store(next);
+
+    // Reset whichever pipeline just got switched off so it doesn't re-emit
+    // a stale value next time the mode rotates back through it.
+    if (next == 1) {
         m_positionProcessor.Reset();
         m_positionInterpolator.Reset();
+    } else if (next == 2) {
+        m_processor.Reset();
+        m_poseInterpolator.Reset();
+        m_lastProcessTime = 0;
+        m_cachedValid = false;
     }
-    Logger::Instance().Info("Position tracking %s", m_positionEnabled ? "enabled" : "disabled");
+
+    const char* label = nullptr;
+    const char* notify = nullptr;
+    switch (next) {
+        case 0:
+            label = "Normal (rotation + position)";
+            notify = "Tracking: Rotation + Position";
+            break;
+        case 1:
+            label = "Rotation only";
+            notify = "Tracking: Rotation Only";
+            break;
+        case 2:
+            label = "Position only";
+            notify = "Tracking: Position Only";
+            break;
+    }
+    Logger::Instance().Info("Tracking mode: %s", label);
     if (m_config.showNotifications) {
-        ShowNotification(m_positionEnabled ? "Position Tracking: ON" : "Position Tracking: OFF");
+        ShowNotification(notify);
     }
 }
 
@@ -306,6 +334,17 @@ void Mod::ToggleYawMode() {
 }
 
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
+    // Tracking-mode cycle: mode 2 = position-only (rotation suppressed).
+    // Return success with zero rotation so the camera hook continues and the
+    // position pipeline still gets to apply its offset. Cache zeros so any
+    // follow-up GetPositionOffset that reads the cached rotation sees them.
+    if (m_trackingMode.load() == 2) {
+        yaw = pitch = roll = 0.0f;
+        m_cachedYaw = m_cachedPitch = m_cachedRoll = 0.0f;
+        m_cachedValid = true;
+        return true;
+    }
+
     // Guard against multiple calls per frame (shadows, reflections, etc.)
     // A 1000μs threshold separates intra-frame passes from distinct frames.
     uint64_t now = GetTimeMicros();
@@ -368,7 +407,8 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
 }
 
 bool Mod::GetPositionOffset(float& x, float& y, float& z) {
-    if (!m_positionEnabled) {
+    // Tracking-mode cycle: mode 1 = rotation-only (position suppressed).
+    if (m_trackingMode.load() == 1) {
         x = y = z = 0.0f;
         return false;
     }

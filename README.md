@@ -71,26 +71,22 @@ This mod includes built-in smoothing to handle network jitter, so if your tracki
 
 ## Controls
 
-| Key           | Action                                                   |
-|---------------|----------------------------------------------------------|
-| **End**       | Toggle head tracking on/off                              |
-| **Home**      | Recenter view                                            |
-| **Page Up**   | Toggle position tracking on/off                          |
-| **Page Down** | Toggle yaw mode (camera-local / world-locked)            |
-| **Insert**    | Toggle reticle on/off                                    |
+Two equivalent binding sets - use whichever your keyboard has:
 
-### Chord alternatives
+| Action              | Nav-cluster | Chord          |
+|---------------------|-------------|----------------|
+| Recenter            | `Home`      | `Ctrl+Shift+T` |
+| Toggle tracking     | `End`       | `Ctrl+Shift+Y` |
+| Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G` |
+| Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H` |
+| Toggle reticle      | `Insert`    | `Ctrl+Shift+U` |
 
-For keyboards without a nav cluster (60%/TKL laptops), every action is also
-bound to a `Ctrl+Shift+<letter>` chord drawn from the T/Y/U/G/H/J block:
+`Page Up` / `Ctrl+Shift+G` cycles tracking mode:
 
-| Chord              | Action                   |
-|--------------------|--------------------------|
-| **Ctrl+Shift+T**   | Recenter view            |
-| **Ctrl+Shift+Y**   | Toggle head tracking     |
-| **Ctrl+Shift+G**   | Toggle position tracking |
-| **Ctrl+Shift+H**   | Toggle yaw mode          |
-| **Ctrl+Shift+U**   | Toggle reticle           |
+1. Normal head-tracked gameplay
+2. Positional tracking disabled, rotational tracking enabled
+3. Rotational tracking disabled, positional tracking enabled
+4. Back to normal
 
 ### Yaw mode
 
@@ -133,7 +129,7 @@ Enabled=true              ; Enable/disable positional tracking (set false for 3D
 [Hotkeys]
 ToggleKey=0x23            ; End key (VK code in hex)
 RecenterKey=0x24          ; Home key (VK code in hex)
-PositionToggleKey=0x21    ; Page Up key (VK code in hex)
+TrackingModeKey=0x21      ; Page Up key - cycles normal / rotation only / position only
 YawModeKey=0x22           ; Page Down key - toggles camera-local / world-locked yaw
 ReticleToggleKey=0x2d     ; Insert key (VK code in hex)
 

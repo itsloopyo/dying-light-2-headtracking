@@ -106,25 +106,17 @@ Write-Host "Current version: $currentVersion" -ForegroundColor Gray
 Write-Host "New version:     $Version" -ForegroundColor Green
 Write-Host ""
 
-# Confirm
-Write-Host "This will:" -ForegroundColor Yellow
-Write-Host "  1. Update version in manifest.json to $Version" -ForegroundColor White
-Write-Host "  2. Commit the change" -ForegroundColor White
-Write-Host "  3. Create tag $tagName" -ForegroundColor White
-Write-Host "  4. Push to GitHub (triggers release workflow)" -ForegroundColor White
-Write-Host ""
-
-$confirm = Read-Host "Continue? (y/N)"
-if ($confirm -ne 'y' -and $confirm -ne 'Y') {
-    Write-Host "Cancelled" -ForegroundColor Yellow
-    exit 0
-}
-
-Write-Host ""
-
 # Step 1: Update version
 Write-Host "Updating version to $Version..." -ForegroundColor Cyan
 Set-Version $Version
+
+# Step 2: Local Release build (catch breakage before pushing a tag)
+Write-Host "Building Release configuration..." -ForegroundColor Cyan
+& pixi run build-release
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: build-release failed (exit $LASTEXITCODE)" -ForegroundColor Red
+    exit 1
+}
 
 # Also update MOD_VERSION in install.cmd so the installer displays the correct version
 $installCmdPath = Join-Path $scriptDir "install.cmd"
@@ -139,7 +131,7 @@ if (Test-Path $launcherManifestPath) {
     $launcherJson | ConvertTo-Json -Depth 10 | Set-Content $launcherManifestPath -NoNewline
 }
 
-# Step 2: Generate CHANGELOG
+# Step 3: Generate CHANGELOG
 Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
 $hasExistingTags = git tag -l 2>$null
@@ -164,17 +156,17 @@ if (-not $hasExistingTags) {
     New-ChangelogFromCommits @changelogArgs
 }
 
-# Step 3: Commit
+# Step 4: Commit
 Write-Host "Committing version change..." -ForegroundColor Cyan
 git add $manifestPath $changelogPath $installCmdPath
 if (Test-Path $launcherManifestPath) { git add $launcherManifestPath }
 git commit -m "Release v$Version"
 
-# Step 3: Create tag
+# Step 5: Create tag
 Write-Host "Creating tag $tagName..." -ForegroundColor Cyan
 git tag $tagName
 
-# Step 4: Push
+# Step 6: Push
 Write-Host "Pushing to GitHub..." -ForegroundColor Cyan
 git push origin main
 git push origin $tagName

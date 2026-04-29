@@ -21,7 +21,7 @@ void Config::SetDefaults() {
 
     toggleKey = DEFAULT_TOGGLE_KEY;
     recenterKey = DEFAULT_RECENTER_KEY;
-    positionToggleKey = DEFAULT_POSITION_TOGGLE_KEY;
+    trackingModeKey = DEFAULT_TRACKING_MODE_KEY;
     yawModeKey = DEFAULT_YAW_MODE_KEY;
     reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
 
@@ -96,8 +96,9 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->toggleKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "RecenterKey")) {
         config->recenterKey = static_cast<int>(strtol(value, nullptr, 0));
-    } else if (MATCH("Hotkeys", "PositionToggleKey")) {
-        config->positionToggleKey = static_cast<int>(strtol(value, nullptr, 0));
+    } else if (MATCH("Hotkeys", "TrackingModeKey") || MATCH("Hotkeys", "PositionToggleKey")) {
+        // PositionToggleKey is the legacy name for TrackingModeKey; both bind the same physical hotkey.
+        config->trackingModeKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "YawModeKey")) {
         config->yawModeKey = static_cast<int>(strtol(value, nullptr, 0));
     } else if (MATCH("Hotkeys", "ReticleToggleKey")) {
@@ -210,7 +211,7 @@ bool Config::Save(const char* path) const {
     file << "; Virtual key codes (hex)\n";
     file << "ToggleKey=0x" << std::hex << toggleKey << "    ; End - Enable/disable\n";
     file << "RecenterKey=0x" << std::hex << recenterKey << "  ; Home - Recenter view\n";
-    file << "PositionToggleKey=0x" << std::hex << positionToggleKey << " ; Page Up - Toggle position\n";
+    file << "TrackingModeKey=0x" << std::hex << trackingModeKey << " ; Page Up - Cycle tracking mode\n";
     file << "YawModeKey=0x" << std::hex << yawModeKey << " ; Page Down - Toggle yaw mode\n";
     file << "ReticleToggleKey=0x" << std::hex << reticleToggleKey << "  ; Insert - Toggle reticle\n\n";
 

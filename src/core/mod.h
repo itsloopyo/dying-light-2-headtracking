@@ -22,7 +22,7 @@ public:
     void Toggle();
 
     void Recenter();
-    void TogglePosition();
+    void CycleTrackingMode();
     void ToggleYawMode();
     void ToggleReticle();
 
@@ -65,7 +65,12 @@ private:
     // Position processing (6DOF)
     cameraunlock::PositionProcessor m_positionProcessor;
     cameraunlock::PositionInterpolator m_positionInterpolator;
-    bool m_positionEnabled = true;
+
+    // Tracking-mode cycle (Page Up / Ctrl+Shift+G):
+    //   0 = normal (rotation + position both active)
+    //   1 = rotation only (position disabled)
+    //   2 = position only (rotation disabled)
+    std::atomic<int> m_trackingMode{0};
 
     // Reticle overlay
     bool m_reticleEnabled = true;

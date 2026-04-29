@@ -12,6 +12,8 @@ namespace DL2HT {
 // Constants
 static constexpr ULONGLONG GAMEPLAY_DETECTION_THRESHOLD_MS = 100;
 static constexpr ULONGLONG POST_LOADING_WARMUP_MS = 1500;
+// Below ~0.1mm the offset is below floor noise; treat as no movement.
+static constexpr float POSITION_THRESHOLD = 0.0001f;
 
 // Game structure offsets (validated via pointer chain dump)
 // Pattern scan → CLobbySteam global → +0xF8 → CGame → +0x390 → CLevel → +0x20 → LevelDI
@@ -309,8 +311,21 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     float pitch = processedPitch * DEG_TO_RAD;
     float roll = processedRoll * DEG_TO_RAD;
 
-    // Skip if no significant rotation
-    if (fabsf(yaw) < ROTATION_THRESHOLD && fabsf(pitch) < ROTATION_THRESHOLD && fabsf(roll) < ROTATION_THRESHOLD) {
+    // Fetch 6DOF position offset up front so the rotation-threshold skip can
+    // also account for it. In tracking-mode 2 (position only) rotation is
+    // always zero, so without this hoist the threshold path would bypass
+    // position application.
+    float posOffX = 0.0f, posOffY = 0.0f, posOffZ = 0.0f;
+    bool hasPosOffset = Mod::Instance().GetPositionOffset(posOffX, posOffY, posOffZ);
+    bool posSignificant = hasPosOffset && (fabsf(posOffX) > POSITION_THRESHOLD ||
+                                           fabsf(posOffY) > POSITION_THRESHOLD ||
+                                           fabsf(posOffZ) > POSITION_THRESHOLD);
+    bool rotSignificant = fabsf(yaw) >= ROTATION_THRESHOLD ||
+                          fabsf(pitch) >= ROTATION_THRESHOLD ||
+                          fabsf(roll) >= ROTATION_THRESHOLD;
+
+    // Skip if neither rotation nor position would change the camera
+    if (!rotSignificant && !posSignificant) {
         SetCrosshairProjection(0, 0);
         ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
         return;
@@ -321,7 +336,9 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     float myFwd[4] = { fwdIn[0], fwdIn[1], fwdIn[2], 0 };
     float myUp[4] = { upIn[0], upIn[1], upIn[2], 0 };
 
-    ApplyHeadTrackingRotation(myFwd, myUp, yaw, pitch, roll, Mod::Instance().GetYawMode());
+    if (rotSignificant) {
+        ApplyHeadTrackingRotation(myFwd, myUp, yaw, pitch, roll, Mod::Instance().GetYawMode());
+    }
 
     // Compute horizon-locked basis from original forward (used by 6DOF position offset)
     // DL2 coords: X=forward, Y=up, Z=left
@@ -339,8 +356,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     float leftZ = flatFwdX;
 
     // Apply 6DOF position offset in horizon-locked space
-    float posOffX, posOffY, posOffZ;
-    if (Mod::Instance().GetPositionOffset(posOffX, posOffY, posOffZ)) {
+    if (hasPosOffset) {
         float dWorldX = flatFwdX * posOffZ + leftX * posOffX;
         float dWorldY = posOffY;
         float dWorldZ = flatFwdZ * posOffZ + leftZ * posOffX;
