@@ -2,7 +2,7 @@
     "schema_version":  1,
     "mod_info":  {
                      "name":  "DL2HeadTracking",
-                     "version":  "1.0.5",
+                     "version":  "1.1.0",
                      "game_id":  "dying-light-2"
                  },
     "strategy":  "AsiLoader",
