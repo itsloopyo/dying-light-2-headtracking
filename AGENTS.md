@@ -779,8 +779,9 @@ Each mod has its own `.github/workflows/build.yml` and `release.yml` in its own 
 - `paths-ignore` drops pure docs/LICENSE changes so they don't burn CI minutes.
 - `if: ${{ !startsWith(github.event.head_commit.message, 'Release v') }}` on the job to skip double-building when `release.ps1` lands its version-bump commit - `release.yml` handles that path.
 - Tag pushes (`v*.*.*`) are handled exclusively by `release.yml`. Do not widen `build.yml`'s `push:` section to include tags.
+- Do not add `schedule:` or `workflow_dispatch:`. Per-push artifacts with 14-day retention are the agreed cadence; converting to cron-nightlies or manual dispatch is a separate decision, not a drift to make casually.
 
-**`build.yml` must produce a usable install artifact.** After the "Verify build outputs" step, run the mod's packaging script and upload the installer ZIP:
+**`build.yml` must produce a usable install artifact.** After the "Verify build outputs" step, run the mod's packaging script and upload the installer ZIP. **A `build.yml` that lints, builds, and verifies but does not upload an artifact is incomplete.** Before committing any change to `build.yml` (or authoring a new one), grep the file for `upload-artifact` and confirm it's present — this is the most common drift.
 
 ```yaml
 - name: Package installer
