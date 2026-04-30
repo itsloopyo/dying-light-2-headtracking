@@ -12,6 +12,8 @@ $ProgressPreference = 'SilentlyContinue'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectDir = Split-Path -Parent $scriptDir
 
+Import-Module (Join-Path $projectDir "cameraunlock-core\powershell\ReleaseWorkflow.psm1") -Force
+
 # Get version from manifest
 $manifest = Get-Content (Join-Path $projectDir "manifest.json") | ConvertFrom-Json
 $version = $manifest.version
@@ -111,6 +113,8 @@ foreach ($doc in $docFiles) {
         Write-Host "  WARNING: $doc not found" -ForegroundColor Yellow
     }
 }
+
+Copy-SharedBundle -StagingDir $ghStagingDir
 
 $ghZipName = "DL2HeadTracking-v$version-installer.zip"
 $ghZipPath = Join-Path $releaseDir $ghZipName

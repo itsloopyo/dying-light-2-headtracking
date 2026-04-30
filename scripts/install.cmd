@@ -2,105 +2,122 @@
 :: ============================================
 :: DL2 Head Tracking - Install
 :: ============================================
-:: Based on cameraunlock-core/scripts/templates/install.cmd
-:: NOTE: Uses ASI Loader, exe is in ph\work\bin\x64\ subdirectory
+:: Source of truth: cameraunlock-core/scripts/templates/install-asi.cmd.
+:: Copy to <mod>/scripts/install.cmd, edit CONFIG BLOCK, leave the rest
+:: alone. Contract: see ~/.claude/CLAUDE.md "install.cmd / uninstall.cmd".
+::
+:: Ultimate ASI Loader: a single-DLL loader renamed to winmm.dll (or
+:: dinput8.dll, xinput1_3.dll, etc. depending on the game). Mod files
+:: are .asi plugins dropped into the same directory as the game exe.
+:: EXE_DIR is derived from GAME_PATH + GAME_EXE_RELPATH returned by the
+:: shim, so games with ph/work/bin/x64-style nested exes work.
+::
+:: Launcher CLI: install.cmd [GAME_PATH] [/y]
 :: ============================================
 
 :: --- CONFIG BLOCK ---
+set "GAME_ID=dying-light-2"
 set "MOD_DISPLAY_NAME=DL2 Head Tracking"
-set "GAME_EXE=DyingLightGame_x64_rwdi.exe"
-set "GAME_DISPLAY_NAME=Dying Light 2"
-set "STEAM_FOLDER_NAME=Dying Light 2"
-set "ENV_VAR_NAME=DYING_LIGHT_2_PATH"
-set "MOD_FILES=DL2HeadTracking.asi HeadTracking.ini"
+set "MOD_DLLS=DL2HeadTracking.asi HeadTracking.ini"
 set "MOD_INTERNAL_NAME=DL2HeadTracking"
 set "MOD_VERSION=1.0.5"
 set "STATE_FILE=.headtracking-state.json"
+set "FRAMEWORK_TYPE=ASILoader"
+set "ASI_LOADER_NAME=winmm.dll"
 set "MOD_CONTROLS=Controls:&echo   Home - Recenter head tracking&echo   End  - Toggle head tracking on/off"
-set "GOG_IDS="
-set "SEARCH_DIRS="
+:: ASI_LOADER_NAME is the filename the ASI DLL is renamed to. DL2 and most
+:: modern games use winmm.dll; older ones use dinput8.dll or xinput1_3.dll.
+:: vendor/ultimate-asi-loader/dinput8.dll is the bundled source; we copy it
+:: to ASI_LOADER_NAME in EXE_DIR. Bump it via `pixi run update-deps`.
 :: --- END CONFIG BLOCK ---
 
+call :detect_yes_flag %*
 call :main %*
 set "_EC=%errorlevel%"
-echo.
-pause
+if not defined YES_FLAG ( echo. & pause )
 exit /b %_EC%
+
+:: ============================================
+:: Pre-scan args at outer scope so YES_FLAG propagates to the post-:main
+:: pause check. :main's arg parser sets its own (local) YES_FLAG too, but
+:: cmd.exe discards local vars when setlocal pops on `exit /b`, so without
+:: this pre-scan the post-:main `if not defined YES_FLAG` always pauses
+:: and /y can't make the script headless. Square brackets are used (not
+:: quotes) to dodge cmd's path-with-trailing-backslash quoting hazard.
+:: ============================================
+:detect_yes_flag
+if [%1]==[] exit /b 0
+if /i [%~1]==[/y]    set "YES_FLAG=1"
+if /i [%~1]==[-y]    set "YES_FLAG=1"
+if /i [%~1]==[--yes] set "YES_FLAG=1"
+shift
+goto :detect_yes_flag
 
 :main
 setlocal enabledelayedexpansion
+
+:: Capture script dir BEFORE the arg parser runs. Inside `call :main`,
+:: `shift` rotates %0 too, so %~dp0 read after shifts resolves to the
+:: dirname of the first arg (e.g. C:\ for /y) instead of the script.
+set "SCRIPT_DIR=%~dp0"
+
+:: -------- Arg parser (canonical, do not modify) --------
+set "YES_FLAG="
+set "_GIVEN_PATH="
+:parse_args
+if "%~1"=="" goto :args_done
+set "_ARG=%~1"
+if /i "!_ARG!"=="/y"    ( set "YES_FLAG=1" & shift & goto :parse_args )
+if /i "!_ARG!"=="-y"    ( set "YES_FLAG=1" & shift & goto :parse_args )
+if /i "!_ARG!"=="--yes" ( set "YES_FLAG=1" & shift & goto :parse_args )
+if "!_ARG:~0,2!"=="--" ( echo ERROR: unknown flag "!_ARG!" & exit /b 2 )
+if "!_ARG:~0,1!"=="/"  ( echo ERROR: unknown flag "!_ARG!" & exit /b 2 )
+if "!_ARG:~0,1!"=="-"  ( echo ERROR: unknown flag "!_ARG!" & exit /b 2 )
+if not defined _GIVEN_PATH (
+    if exist "!_ARG!\" ( set "_GIVEN_PATH=!_ARG!" & shift & goto :parse_args )
+)
+echo ERROR: unrecognised argument "!_ARG!"
+exit /b 2
+:args_done
 
 echo.
 echo === %MOD_DISPLAY_NAME% - Install ===
 echo.
 
-set "SCRIPT_DIR=%~dp0"
-set "GAME_PATH="
-
-:: --- Find game path ---
-
-:: Check command line argument
-if not "%~1"=="" (
-    if exist "%~1\ph\work\bin\x64\%GAME_EXE%" (
-        set "GAME_PATH=%~1"
-        goto :found_game
-    )
-    echo ERROR: %GAME_EXE% not found at: "%~1"\ph\work\bin\x64\
-    echo.
+:: -------- Resolve game path via shared shim --------
+set "_SHIM=%SCRIPT_DIR%shared\find-game.ps1"
+if not exist "%_SHIM%" set "_SHIM=%SCRIPT_DIR%..\cameraunlock-core\scripts\find-game.ps1"
+if not exist "%_SHIM%" (
+    echo ERROR: find-game.ps1 not found in shared\ or ..\cameraunlock-core\scripts\.
+    echo If this is a release ZIP, re-download it from GitHub ^(corrupt installer^).
+    echo If this is the dev tree, make sure the cameraunlock-core submodule is checked out.
     exit /b 1
 )
-
-:: Check environment variable
-if defined %ENV_VAR_NAME% (
-    call set "_ENV_PATH=%%%ENV_VAR_NAME%%%"
-    if exist "!_ENV_PATH!\ph\work\bin\x64\%GAME_EXE%" (
-        set "GAME_PATH=!_ENV_PATH!"
-        goto :found_game
-    )
+set "_SHIM_OUT=%TEMP%\cul-find-%RANDOM%-%RANDOM%.cmd"
+set "_GIVEN_ARG="
+if defined _GIVEN_PATH set "_GIVEN_ARG=-GivenPath "!_GIVEN_PATH!""
+powershell -NoProfile -ExecutionPolicy Bypass -File "%_SHIM%" -GameId %GAME_ID% -OutFile "!_SHIM_OUT!" !_GIVEN_ARG!
+set "_PS_EC=!errorlevel!"
+if not "!_PS_EC!"=="0" (
+    echo.
+    echo ERROR: Could not resolve game install path ^(shim exit code !_PS_EC!^).
+    echo Pass a path explicitly: install.cmd "C:\path\to\game"
+    echo.
+    del "!_SHIM_OUT!" 2>nul
+    exit /b 1
 )
+call "!_SHIM_OUT!"
+del "!_SHIM_OUT!" 2>nul
 
-:: Check Steam (try multiple folder name variants)
-call :find_steam_game
-if defined GAME_PATH goto :found_game
-
-set "STEAM_FOLDER_NAME=Dying Light 2 Stay Human"
-call :find_steam_game
-if defined GAME_PATH goto :found_game
-
-set "STEAM_FOLDER_NAME=Dying Light 2 Reloaded Edition"
-call :find_steam_game
-if defined GAME_PATH goto :found_game
-
-:: Reset for display
-set "STEAM_FOLDER_NAME=Dying Light 2"
-
-:: Check GOG
-call :find_gog_game
-if defined GAME_PATH goto :found_game
-
-:: Check Epic
-call :find_epic_game
-if defined GAME_PATH goto :found_game
-
-:: Check common directories
-call :find_game_in_dirs
-if defined GAME_PATH goto :found_game
-
-echo ERROR: Could not find %GAME_DISPLAY_NAME% installation.
-echo.
-echo Please either:
-echo   1. Set %ENV_VAR_NAME% environment variable to your game folder
-echo   2. Run: install.cmd "C:\path\to\game"
-echo.
-exit /b 1
-
-:found_game
 echo Game found: %GAME_PATH%
+
+:: Derive EXE_DIR (where .asi plugins land) from GAME_PATH + GAME_EXE_RELPATH.
+for %%i in ("%GAME_PATH%\%GAME_EXE_RELPATH%") do set "EXE_DIR=%%~dpi"
+if "!EXE_DIR:~-1!"=="\" set "EXE_DIR=!EXE_DIR:~0,-1!"
+echo Exe dir : %EXE_DIR%
 echo.
 
-set "EXE_DIR=%GAME_PATH%\ph\work\bin\x64"
-
-:: --- Check if game is running ---
+:: -------- Game-running check --------
 tasklist /fi "imagename eq %GAME_EXE%" 2>nul | findstr /i "%GAME_EXE%" >nul 2>&1
 if not errorlevel 1 (
     echo ERROR: %GAME_DISPLAY_NAME% is currently running.
@@ -109,27 +126,34 @@ if not errorlevel 1 (
     exit /b 1
 )
 
-:: --- Check ASI Loader ---
-if not exist "%EXE_DIR%\winmm.dll" (
+:: -------- Prior state --------
+set "WE_INSTALLED=false"
+if exist "%GAME_PATH%\%STATE_FILE%" (
+    findstr /c:"installed_by_us" "%GAME_PATH%\%STATE_FILE%" 2>nul | findstr /c:"true" >nul 2>&1
+    if not errorlevel 1 set "WE_INSTALLED=true"
+)
+
+:: -------- Ensure ASI Loader --------
+if not exist "%EXE_DIR%\%ASI_LOADER_NAME%" (
     echo ASI Loader not found. Installing...
     echo.
     call :install_asi_loader
     if errorlevel 1 exit /b 1
+    set "WE_INSTALLED=true"
 ) else (
-    echo ASI Loader found.
+    echo Existing ASI Loader detected, skipping loader install, deploying plugin only.
 )
 echo.
 
-:: --- Deploy mod files ---
+:: -------- Deploy mod files --------
 echo Deploying mod files...
 
-set "DEPLOY_DIR=%EXE_DIR%"
 set "FILES_DIR=%SCRIPT_DIR%plugins"
 
 set "DEPLOY_FAILED=0"
-for %%f in (%MOD_FILES%) do (
+for %%f in (%MOD_DLLS%) do (
     if exist "%FILES_DIR%\%%f" (
-        copy /y "%FILES_DIR%\%%f" "%DEPLOY_DIR%\" >nul
+        copy /y "%FILES_DIR%\%%f" "%EXE_DIR%\" >nul
         echo   Deployed %%f
     ) else (
         echo   ERROR: %%f not found in plugins folder
@@ -146,26 +170,8 @@ if "!DEPLOY_FAILED!"=="1" (
     exit /b 1
 )
 
-:: --- Update state file ---
-:: Preserve installed_by_us flag from previous state
-set "WE_INSTALLED=false"
-if exist "%GAME_PATH%\%STATE_FILE%" (
-    findstr /c:"installed_by_us" "%GAME_PATH%\%STATE_FILE%" 2>nul | findstr /c:"true" >nul 2>&1
-    if not errorlevel 1 set "WE_INSTALLED=true"
-)
-
-> "%GAME_PATH%\%STATE_FILE%" (
-    echo {
-    echo   "framework": {
-    echo     "type": "ASILoader",
-    echo     "installed_by_us": !WE_INSTALLED!
-    echo   },
-    echo   "mod": {
-    echo     "name": "%MOD_INTERNAL_NAME%",
-    echo     "version": "%MOD_VERSION%"
-    echo   }
-    echo }
-)
+:: -------- Write state file --------
+call :write_state_file
 
 echo.
 echo ========================================
@@ -173,7 +179,7 @@ echo   Deployment Complete!
 echo ========================================
 echo.
 echo %MOD_DISPLAY_NAME% has been deployed to:
-echo   %DEPLOY_DIR%
+echo   %EXE_DIR%
 echo.
 echo Start the game to use the mod!
 if defined MOD_CONTROLS (
@@ -184,125 +190,48 @@ echo.
 exit /b 0
 
 :: ============================================
-:: Find game in Steam libraries
-:: ============================================
-:find_steam_game
-set "STEAM_PATH="
-
-:: Get Steam install path from registry (64-bit)
-for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\WOW6432Node\Valve\Steam" /v InstallPath 2^>nul') do set "STEAM_PATH=%%b"
-
-:: Try 32-bit registry
-if not defined STEAM_PATH (
-    for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Valve\Steam" /v InstallPath 2^>nul') do set "STEAM_PATH=%%b"
-)
-
-:: Check default Steam library
-if defined STEAM_PATH (
-    if exist "%STEAM_PATH%\steamapps\common\%STEAM_FOLDER_NAME%\ph\work\bin\x64\%GAME_EXE%" (
-        set "GAME_PATH=%STEAM_PATH%\steamapps\common\%STEAM_FOLDER_NAME%"
-        exit /b 0
-    )
-)
-
-:: Parse libraryfolders.vdf for additional Steam library paths
-if defined STEAM_PATH (
-    set "VDF_FILE=%STEAM_PATH%\steamapps\libraryfolders.vdf"
-    if exist "!VDF_FILE!" (
-        for /f "tokens=1,2 delims=	 " %%a in ('findstr /c:"\"path\"" "!VDF_FILE!" 2^>nul') do (
-            set "_LIB_PATH=%%~b"
-            set "_LIB_PATH=!_LIB_PATH:\\=\!"
-            if exist "!_LIB_PATH!\steamapps\common\%STEAM_FOLDER_NAME%\ph\work\bin\x64\%GAME_EXE%" (
-                set "GAME_PATH=!_LIB_PATH!\steamapps\common\%STEAM_FOLDER_NAME%"
-                exit /b 0
-            )
-        )
-    )
-)
-
-exit /b 1
-
-:: ============================================
-:: Find game in GOG registry
-:: ============================================
-:find_gog_game
-if not defined GOG_IDS exit /b 1
-for %%g in (%GOG_IDS%) do (
-    for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\WOW6432Node\GOG.com\Games\%%g" /v path 2^>nul') do (
-        if exist "%%b\ph\work\bin\x64\%GAME_EXE%" ( set "GAME_PATH=%%b" & exit /b 0 )
-    )
-    for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\GOG.com\Games\%%g" /v path 2^>nul') do (
-        if exist "%%b\ph\work\bin\x64\%GAME_EXE%" ( set "GAME_PATH=%%b" & exit /b 0 )
-    )
-)
-exit /b 1
-
-:: ============================================
-:: Find game in Epic Games manifests
-:: ============================================
-:find_epic_game
-set "_EPIC_MANIFESTS=%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests"
-if not exist "%_EPIC_MANIFESTS%" exit /b 1
-for %%m in ("%_EPIC_MANIFESTS%\*.item") do (
-    for /f "usebackq delims=" %%l in ("%%m") do (
-        set "_EL=%%l"
-        if not "!_EL:InstallLocation=!"=="!_EL!" (
-            set "_EL=!_EL:*InstallLocation=!"
-            set "_EL=!_EL:~4!"
-            set "_EL=!_EL:~0,-2!"
-            set "_EL=!_EL:\\=\!"
-            if exist "!_EL!\ph\work\bin\x64\%GAME_EXE%" ( set "GAME_PATH=!_EL!" & exit /b 0 )
-        )
-    )
-)
-exit /b 1
-
-:: ============================================
-:: Find game by scanning common directories
-:: ============================================
-:find_game_in_dirs
-if not defined SEARCH_DIRS exit /b 1
-for %%d in (%SEARCH_DIRS%) do (
-    if exist "%%~d\ph\work\bin\x64\%GAME_EXE%" ( set "GAME_PATH=%%~d" & exit /b 0 )
-    for /f "delims=" %%p in ('dir /b /ad "%%~d" 2^>nul') do (
-        if exist "%%~d\%%p\ph\work\bin\x64\%GAME_EXE%" ( set "GAME_PATH=%%~d\%%p" & exit /b 0 )
-        for /f "delims=" %%s in ('dir /b /ad "%%~d\%%p" 2^>nul') do (
-            if exist "%%~d\%%p\%%s\ph\work\bin\x64\%GAME_EXE%" ( set "GAME_PATH=%%~d\%%p\%%s" & exit /b 0 )
-        )
-    )
-)
-exit /b 1
-
-:: ============================================
-:: Install Ultimate ASI Loader (bundled, MIT-licensed, v9.7.1 upstream)
+:: Install Ultimate ASI Loader from the bundled vendored copy.
+:: Vendor tree is the single source of truth at install time. To bump the
+:: bundled version, run `pixi run update-deps` in the mod repo and commit.
+:: See ~/.claude/CLAUDE.md "Vendoring Third-Party Dependencies".
 :: ============================================
 :install_asi_loader
-set "ASI_SRC=%SCRIPT_DIR%vendor\ultimate-asi-loader\dinput8.dll"
+set "VENDOR_DIR=%SCRIPT_DIR%vendor\ultimate-asi-loader"
+set "VENDOR_DLL=%VENDOR_DIR%\dinput8.dll"
 
-if not exist "%ASI_SRC%" (
-    echo   ERROR: Bundled ASI loader missing at:
-    echo     %ASI_SRC%
+if not exist "%VENDOR_DLL%" (
+    echo   ERROR: Bundled Ultimate ASI Loader not found at:
+    echo     %VENDOR_DLL%
     echo   The installer ZIP is corrupt. Re-download the release.
     exit /b 1
 )
 
-echo   Installing Ultimate ASI Loader v9.7.1 from bundled copy...
-copy /y "%ASI_SRC%" "%EXE_DIR%\winmm.dll" >nul
+copy /y "%VENDOR_DLL%" "%EXE_DIR%\%ASI_LOADER_NAME%" >nul
 if errorlevel 1 (
     echo   ERROR: Failed to copy loader to %EXE_DIR%.
     echo   Check the game directory is writable.
     exit /b 1
 )
 
-:: Write state file marking that we installed ASI loader
+echo   Ultimate ASI Loader installed successfully!
+exit /b 0
+
+:: ============================================
+:: Write the canonical state file.
+:: ============================================
+:write_state_file
 > "%GAME_PATH%\%STATE_FILE%" (
     echo {
+    echo   "schema_version": 1,
     echo   "framework": {
-    echo     "type": "ASILoader",
-    echo     "installed_by_us": true
+    echo     "type": "%FRAMEWORK_TYPE%",
+    echo     "installed_by_us": !WE_INSTALLED!
+    echo   },
+    echo   "mod": {
+    echo     "id": "%GAME_ID%",
+    echo     "name": "%MOD_INTERNAL_NAME%",
+    echo     "version": "%MOD_VERSION%"
     echo   }
     echo }
 )
-
-echo   Ultimate ASI Loader installed successfully!
 exit /b 0

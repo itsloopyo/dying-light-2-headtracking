@@ -51,7 +51,6 @@ package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-rele
 
 # Automated release workflow
 release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1" }
-release-force = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1 -Force" }
 
 # Preview changelog for next release
 show-changelog = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/show-changelog.ps1" }
