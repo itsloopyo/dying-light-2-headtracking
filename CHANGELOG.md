@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1] - 2026-05-03
+
+### Other
+
+- Verify existing BepInEx loader arch and replace on mismatch
+- Fall back to dev-tree vendor path in BepInEx install body
+
 ## [1.2.0] - 2026-05-03
 
 ### Added
