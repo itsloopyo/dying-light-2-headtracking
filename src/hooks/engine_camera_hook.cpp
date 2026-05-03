@@ -510,6 +510,10 @@ void RefreshGameplayStateCache() {
     g_gameplayCache.headTrackingAppliedThisFrame.store(false, std::memory_order_relaxed);
 }
 
+bool IsAtMainMenu() {
+    return g_gameplayCache.onMainMenu.load(std::memory_order_relaxed);
+}
+
 bool IsInGameplay() {
     // The most reliable check: did we actually apply head tracking recently?
     // This is true only when all gate conditions passed in MoveCameraHook:

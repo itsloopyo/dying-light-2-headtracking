@@ -44,6 +44,11 @@ struct Config {
     bool autoEnable = true;
     bool showNotifications = true;
 
+    // Auto-press ESC/Space during the publisher splash + intro cutscenes so
+    // launch-to-main-menu is fast during dev iteration. Stops automatically
+    // once the main menu is reached or after a 60s timeout.
+    bool skipSplash = true;
+
     // Load/Save
     bool Load(const char* path);
     bool Save(const char* path) const;

@@ -18,4 +18,9 @@ void RefreshGameplayStateCache();
 // Uses cached values from RefreshGameplayStateCache
 bool IsInGameplay();
 
+// True once CGame's level name has flipped to "menu_level" (i.e. the player
+// has gotten past the publisher splash screens to the main menu).
+// Reads the cached value populated by RefreshGameplayStateCache.
+bool IsAtMainMenu();
+
 } // namespace DL2HT

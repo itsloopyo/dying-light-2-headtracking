@@ -44,6 +44,7 @@ void Config::SetDefaults() {
 
     autoEnable = true;
     showNotifications = true;
+    skipSplash = true;
 }
 
 void Config::Validate() {
@@ -143,6 +144,8 @@ int Config::ConfigHandler(void* user, const char* section, const char* name, con
         config->autoEnable = (strcmp(value, "true") == 0 || atoi(value) == 1);
     } else if (MATCH("General", "ShowNotifications")) {
         config->showNotifications = (strcmp(value, "true") == 0 || atoi(value) == 1);
+    } else if (MATCH("General", "SkipSplash")) {
+        config->skipSplash = (strcmp(value, "true") == 0 || atoi(value) == 1);
     }
 
 #undef MATCH
@@ -228,6 +231,10 @@ bool Config::Save(const char* path) const {
     file << "AutoEnable=" << (autoEnable ? "true" : "false") << "\n";
     file << "; Show on-screen notifications\n";
     file << "ShowNotifications=" << (showNotifications ? "true" : "false") << "\n";
+    file << "; Auto-skip publisher splash + intro cutscenes by posting ESC/SPACE\n";
+    file << "; until the main menu is reached. Stops automatically at the menu\n";
+    file << "; or after a 60s timeout.\n";
+    file << "SkipSplash=" << (skipSplash ? "true" : "false") << "\n";
 
     file.close();
     Logger::Instance().Info("Config saved to %s", path);

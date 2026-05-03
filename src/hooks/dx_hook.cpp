@@ -42,7 +42,12 @@ struct DX12State {
     ID3D12Device* pDevice = nullptr;
     ID3D12CommandQueue* pCommandQueue = nullptr;
     ID3D12DescriptorHeap* pSrvDescHeap = nullptr;
-    ID3D12CommandAllocator* pCommandAllocator = nullptr;
+    // One allocator per back buffer. Sharing a single allocator across frames
+    // and Reset()-ing it every Present is a D3D12 spec violation: the GPU may
+    // still be executing prior submissions from it, and well-behaved drivers
+    // serialize CPU/GPU to enforce safety, which causes the "120fps counter
+    // but visibly choppy" symptom we hit before this was per-buffer.
+    std::vector<ID3D12CommandAllocator*> pCommandAllocators;
     ID3D12GraphicsCommandList* pCommandList = nullptr;
     std::vector<ID3D12Resource*> pBackBuffers;
     ID3D12DescriptorHeap* pRtvDescHeap = nullptr;
@@ -115,11 +120,26 @@ static void DrawCrosshair(float screenWidth, float screenHeight) {
     float tanUp = g_crosshair.tanUp.load(std::memory_order_relaxed);
     float fovDeg = g_crosshair.fovDegrees.load(std::memory_order_relaxed);
 
-    // Map tangent-space to screen coordinates
+    // Map tangent-space to screen coordinates.
+    //
+    // DL2's IBaseCamera::GetFOV returns the FOV slider value calibrated at
+    // 16:9, NOT the rendered horizontal FOV at the user's actual aspect.
+    // The engine renders Hor+ (vertical FOV constant, horizontal grows with
+    // aspect), so at 32:9 the real horizontal FOV is roughly 2x what GetFOV
+    // returns. Treating the reported value as the live H-FOV scales the
+    // reticle by the wrong tan-half-angle and the dot "flies around" by
+    // ~aspect/(16:9) at ultrawide.
+    //
+    // The fix: back-derive vertical FOV (which is invariant under Hor+) from
+    // the reported value at the 16:9 calibration aspect, then re-derive the
+    // current horizontal FOV from V-FOV * actual_aspect. At 16:9 this is a
+    // no-op (preserves prior behaviour); at 32:9 it halves the H deflection.
     constexpr float kDegToRad = 0.0174532925f;
+    constexpr float kCalibrationAspect = 16.0f / 9.0f;
     float aspectRatio = screenWidth / screenHeight;
-    float tanHalfHFov = std::tan(fovDeg * kDegToRad * 0.5f);
-    float tanHalfVFov = tanHalfHFov / aspectRatio;
+    float tanHalfReportedH = std::tan(fovDeg * kDegToRad * 0.5f);
+    float tanHalfVFov = tanHalfReportedH / kCalibrationAspect;
+    float tanHalfHFov = tanHalfVFov * aspectRatio;
 
     float halfW = screenWidth * 0.5f;
     float halfH = screenHeight * 0.5f;
@@ -192,15 +212,16 @@ static bool InitializeDX12(IDXGISwapChain* pSwapChain) {
     }
     g_dx.rtvDescriptorSize = g_dx.pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-    // Create command allocator
-    hr = g_dx.pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_dx.pCommandAllocator));
-    if (FAILED(hr)) {
-        Logger::Instance().Error("Failed to create command allocator: 0x%08X", hr);
-        return false;
+    g_dx.pCommandAllocators.resize(g_dx.bufferCount, nullptr);
+    for (UINT i = 0; i < g_dx.bufferCount; i++) {
+        hr = g_dx.pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_dx.pCommandAllocators[i]));
+        if (FAILED(hr)) {
+            Logger::Instance().Error("Failed to create command allocator %d: 0x%08X", i, hr);
+            return false;
+        }
     }
 
-    // Create command list
-    hr = g_dx.pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_dx.pCommandAllocator, nullptr, IID_PPV_ARGS(&g_dx.pCommandList));
+    hr = g_dx.pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_dx.pCommandAllocators[0], nullptr, IID_PPV_ARGS(&g_dx.pCommandList));
     if (FAILED(hr)) {
         Logger::Instance().Error("Failed to create command list: 0x%08X", hr);
         return false;
@@ -258,15 +279,23 @@ static bool InitializeDX12(IDXGISwapChain* pSwapChain) {
 static void RenderImGui(IDXGISwapChain* pSwapChain) {
     if (!g_dx.initialized) return;
 
+    // Skip the entire ImGui submission when there is nothing to draw.
+    // Without this, every Present pays the cost of an extra command-list
+    // submit + two resource transitions even with the reticle hidden.
+    bool drawReticle = g_crosshair.enabled.load(std::memory_order_relaxed) && IsInGameplay();
+    if (!drawReticle) return;
+
     // Get current back buffer index (using cached SwapChain3 interface)
     UINT bufferIndex = 0;
     if (g_dx.pSwapChain3) {
         bufferIndex = g_dx.pSwapChain3->GetCurrentBackBufferIndex();
     }
 
-    // Reset command allocator and list
-    g_dx.pCommandAllocator->Reset();
-    g_dx.pCommandList->Reset(g_dx.pCommandAllocator, nullptr);
+    if (bufferIndex >= g_dx.pCommandAllocators.size()) return;
+
+    ID3D12CommandAllocator* pAllocator = g_dx.pCommandAllocators[bufferIndex];
+    pAllocator->Reset();
+    g_dx.pCommandList->Reset(pAllocator, nullptr);
 
     // Transition back buffer to render target
     D3D12_RESOURCE_BARRIER barrier = {};
@@ -386,6 +415,16 @@ static HRESULT __stdcall hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT Buffer
             g_dx.pDevice->CreateRenderTargetView(g_dx.pBackBuffers[i], nullptr, rtvHandle);
             rtvHandle.ptr += g_dx.rtvDescriptorSize;
         }
+
+        if (g_dx.pCommandAllocators.size() != g_dx.bufferCount) {
+            for (auto* alloc : g_dx.pCommandAllocators) {
+                if (alloc) alloc->Release();
+            }
+            g_dx.pCommandAllocators.assign(g_dx.bufferCount, nullptr);
+            for (UINT i = 0; i < g_dx.bufferCount; i++) {
+                g_dx.pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_dx.pCommandAllocators[i]));
+            }
+        }
     }
 
     return hr;
@@ -463,7 +502,10 @@ void RemoveDXHook() {
         g_dx.pBackBuffers.clear();
 
         if (g_dx.pCommandList) { g_dx.pCommandList->Release(); g_dx.pCommandList = nullptr; }
-        if (g_dx.pCommandAllocator) { g_dx.pCommandAllocator->Release(); g_dx.pCommandAllocator = nullptr; }
+        for (auto* alloc : g_dx.pCommandAllocators) {
+            if (alloc) alloc->Release();
+        }
+        g_dx.pCommandAllocators.clear();
         if (g_dx.pRtvDescHeap) { g_dx.pRtvDescHeap->Release(); g_dx.pRtvDescHeap = nullptr; }
         if (g_dx.pSrvDescHeap) { g_dx.pSrvDescHeap->Release(); g_dx.pSrvDescHeap = nullptr; }
         if (g_dx.pSwapChain3) { g_dx.pSwapChain3->Release(); g_dx.pSwapChain3 = nullptr; }
