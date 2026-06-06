@@ -3,6 +3,8 @@
 #include "core/mod.h"
 #include "core/logger.h"
 #include "core/hotkey_utils.h"
+#include <cameraunlock/input/hotkey_poller.h>
+#include <cameraunlock/input/chord_hotkeys.h>
 
 namespace DL2HT {
 
@@ -14,157 +16,90 @@ static constexpr int CHORD_TRACKING_MODE_VK = 0x47;    // G - cycle tracking mod
 static constexpr int CHORD_YAW_MODE_VK = 0x48;         // H
 static constexpr int CHORD_RETICLE_TOGGLE_VK = 0x55;   // U
 
-static std::thread g_inputThread;
-static std::atomic<bool> g_stopFlag{false};
-static std::atomic<bool> g_running{false};
+static cameraunlock::input::HotkeyPoller g_poller;
+static bool g_hotkeysRegistered = false;
 
-static std::atomic<int> g_toggleKey{DEFAULT_TOGGLE_KEY};
-static std::atomic<int> g_recenterKey{DEFAULT_RECENTER_KEY};
-static std::atomic<int> g_trackingModeKey{DEFAULT_TRACKING_MODE_KEY};
-static std::atomic<int> g_yawModeKey{DEFAULT_YAW_MODE_KEY};
-static std::atomic<int> g_reticleToggleKey{DEFAULT_RETICLE_TOGGLE_KEY};
+static void RegisterHotkeys(const Config& config) {
+    using cameraunlock::input::NavGuarded;
+    using cameraunlock::input::ChordGuarded;
 
-// Primary-key rising-edge state
-static std::atomic<bool> g_toggleKeyDown{false};
-static std::atomic<bool> g_recenterKeyDown{false};
-static std::atomic<bool> g_trackingModeKeyDown{false};
-static std::atomic<bool> g_yawModeKeyDown{false};
-static std::atomic<bool> g_reticleToggleKeyDown{false};
+    // Primary nav-cluster keys fire only when the Ctrl+Shift chord is NOT
+    // held, so Ctrl+Shift+End doesn't also trigger the End-only binding.
+    g_poller.AddHotkey(config.toggleKey, NavGuarded([] {
+        Logger::Instance().Debug("Toggle key pressed");
+        Mod::Instance().Toggle();
+    }));
+    g_poller.AddHotkey(CHORD_TOGGLE_VK, ChordGuarded([] {
+        Logger::Instance().Debug("Toggle chord (Ctrl+Shift+Y) pressed");
+        Mod::Instance().Toggle();
+    }));
 
-// Chord rising-edge state (tracked separately so chord and primary don't
-// interfere with each other's debouncing)
-static std::atomic<bool> g_toggleChordDown{false};
-static std::atomic<bool> g_recenterChordDown{false};
-static std::atomic<bool> g_trackingModeChordDown{false};
-static std::atomic<bool> g_yawModeChordDown{false};
-static std::atomic<bool> g_reticleToggleChordDown{false};
+    g_poller.AddHotkey(config.recenterKey, NavGuarded([] {
+        Logger::Instance().Debug("Recenter key pressed");
+        Mod::Instance().Recenter();
+    }));
+    g_poller.AddHotkey(CHORD_RECENTER_VK, ChordGuarded([] {
+        Logger::Instance().Debug("Recenter chord (Ctrl+Shift+T) pressed");
+        Mod::Instance().Recenter();
+    }));
 
-static void InputPollingThread() {
-    Logger::Instance().Debug("Input polling thread started");
+    g_poller.AddHotkey(config.trackingModeKey, NavGuarded([] {
+        Logger::Instance().Debug("Tracking mode key pressed");
+        Mod::Instance().CycleTrackingMode();
+    }));
+    g_poller.AddHotkey(CHORD_TRACKING_MODE_VK, ChordGuarded([] {
+        Logger::Instance().Debug("Tracking mode chord (Ctrl+Shift+G) pressed");
+        Mod::Instance().CycleTrackingMode();
+    }));
 
-    while (!g_stopFlag.load()) {
-        // Modifier snapshot for chord detection. Primary-key fires are gated
-        // by !chordActive so Ctrl+Shift+End doesn't also fire the End-only
-        // toggle path.
-        bool ctrl = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-        bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-        bool chordActive = ctrl && shift;
+    g_poller.AddHotkey(config.yawModeKey, NavGuarded([] {
+        Logger::Instance().Debug("Yaw mode key pressed");
+        Mod::Instance().ToggleYawMode();
+    }));
+    g_poller.AddHotkey(CHORD_YAW_MODE_VK, ChordGuarded([] {
+        Logger::Instance().Debug("Yaw mode chord (Ctrl+Shift+H) pressed");
+        Mod::Instance().ToggleYawMode();
+    }));
 
-        int toggleKey = g_toggleKey.load();
-        if (DetectEdge(toggleKey, g_toggleKeyDown) && !chordActive) {
-            Logger::Instance().Debug("Toggle key (%s) pressed", VirtualKeyToString(toggleKey));
-            Mod::Instance().Toggle();
-        }
-        if (DetectChordEdge(CHORD_TOGGLE_VK, g_toggleChordDown, chordActive)) {
-            Logger::Instance().Debug("Toggle chord (Ctrl+Shift+Y) pressed");
-            Mod::Instance().Toggle();
-        }
-
-        int recenterKey = g_recenterKey.load();
-        if (DetectEdge(recenterKey, g_recenterKeyDown) && !chordActive) {
-            Logger::Instance().Debug("Recenter key (%s) pressed", VirtualKeyToString(recenterKey));
-            Mod::Instance().Recenter();
-        }
-        if (DetectChordEdge(CHORD_RECENTER_VK, g_recenterChordDown, chordActive)) {
-            Logger::Instance().Debug("Recenter chord (Ctrl+Shift+T) pressed");
-            Mod::Instance().Recenter();
-        }
-
-        int trackingModeKey = g_trackingModeKey.load();
-        if (DetectEdge(trackingModeKey, g_trackingModeKeyDown) && !chordActive) {
-            Logger::Instance().Debug("Tracking mode key (%s) pressed", VirtualKeyToString(trackingModeKey));
-            Mod::Instance().CycleTrackingMode();
-        }
-        if (DetectChordEdge(CHORD_TRACKING_MODE_VK, g_trackingModeChordDown, chordActive)) {
-            Logger::Instance().Debug("Tracking mode chord (Ctrl+Shift+G) pressed");
-            Mod::Instance().CycleTrackingMode();
-        }
-
-        int yawModeKey = g_yawModeKey.load();
-        if (DetectEdge(yawModeKey, g_yawModeKeyDown) && !chordActive) {
-            Logger::Instance().Debug("Yaw mode key (%s) pressed", VirtualKeyToString(yawModeKey));
-            Mod::Instance().ToggleYawMode();
-        }
-        if (DetectChordEdge(CHORD_YAW_MODE_VK, g_yawModeChordDown, chordActive)) {
-            Logger::Instance().Debug("Yaw mode chord (Ctrl+Shift+H) pressed");
-            Mod::Instance().ToggleYawMode();
-        }
-
-        int reticleToggleKey = g_reticleToggleKey.load();
-        if (DetectEdge(reticleToggleKey, g_reticleToggleKeyDown) && !chordActive) {
-            Logger::Instance().Debug("Reticle toggle key (%s) pressed", VirtualKeyToString(reticleToggleKey));
-            Mod::Instance().ToggleReticle();
-        }
-        if (DetectChordEdge(CHORD_RETICLE_TOGGLE_VK, g_reticleToggleChordDown, chordActive)) {
-            Logger::Instance().Debug("Reticle toggle chord (Ctrl+Shift+U) pressed");
-            Mod::Instance().ToggleReticle();
-        }
-
-        Sleep(16);  // ~60Hz polling rate
-    }
-
-    Logger::Instance().Debug("Input polling thread stopped");
+    g_poller.AddHotkey(config.reticleToggleKey, NavGuarded([] {
+        Logger::Instance().Debug("Reticle toggle key pressed");
+        Mod::Instance().ToggleReticle();
+    }));
+    g_poller.AddHotkey(CHORD_RETICLE_TOGGLE_VK, ChordGuarded([] {
+        Logger::Instance().Debug("Reticle toggle chord (Ctrl+Shift+U) pressed");
+        Mod::Instance().ToggleReticle();
+    }));
 }
 
 bool InstallInputHook() {
-    if (g_running.load()) {
+    if (g_poller.IsRunning()) {
         return true;
     }
 
     const Config& config = Mod::Instance().GetConfig();
-    g_toggleKey.store(config.toggleKey);
-    g_recenterKey.store(config.recenterKey);
-    g_trackingModeKey.store(config.trackingModeKey);
-    g_yawModeKey.store(config.yawModeKey);
-    g_reticleToggleKey.store(config.reticleToggleKey);
 
-    g_toggleKeyDown.store(false);
-    g_recenterKeyDown.store(false);
-    g_trackingModeKeyDown.store(false);
-    g_yawModeKeyDown.store(false);
-    g_reticleToggleKeyDown.store(false);
+    if (!g_hotkeysRegistered) {
+        RegisterHotkeys(config);
+        g_hotkeysRegistered = true;
+    }
 
-    g_toggleChordDown.store(false);
-    g_recenterChordDown.store(false);
-    g_trackingModeChordDown.store(false);
-    g_yawModeChordDown.store(false);
-    g_reticleToggleChordDown.store(false);
-
-    g_stopFlag.store(false);
-    g_running.store(true);
-    g_inputThread = std::thread(InputPollingThread);
+    if (!g_poller.Start(16)) {
+        return false;
+    }
 
     Logger::Instance().Info("Input hook installed - Toggle: %s, Recenter: %s",
-        VirtualKeyToString(g_toggleKey.load()), VirtualKeyToString(g_recenterKey.load()));
+        VirtualKeyToString(config.toggleKey), VirtualKeyToString(config.recenterKey));
 
     return true;
 }
 
 void RemoveInputHook() {
-    if (!g_running.load()) {
+    if (!g_poller.IsRunning()) {
         return;
     }
 
-    g_stopFlag.store(true);
-
-    if (g_inputThread.joinable()) {
-        g_inputThread.join();
-    }
-
-    g_running.store(false);
+    g_poller.Stop();
     Logger::Instance().Info("Input hook removed");
-}
-
-void SetHotkeys(int toggleKey, int recenterKey) {
-    if (IsValidHotkeyCode(toggleKey)) {
-        g_toggleKey.store(toggleKey);
-    }
-    if (IsValidHotkeyCode(recenterKey)) {
-        g_recenterKey.store(recenterKey);
-    }
-
-    Logger::Instance().Info("Hotkeys updated - Toggle: %s, Recenter: %s",
-        VirtualKeyToString(g_toggleKey.load()), VirtualKeyToString(g_recenterKey.load()));
 }
 
 } // namespace DL2HT

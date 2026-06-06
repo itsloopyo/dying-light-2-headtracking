@@ -3,10 +3,7 @@
 #include "config.h"
 #include "rotation_math.h"
 #include <cameraunlock/protocol/udp_receiver.h>
-#include <cameraunlock/processing/tracking_processor.h>
-#include <cameraunlock/processing/pose_interpolator.h>
-#include <cameraunlock/processing/position_processor.h>
-#include <cameraunlock/processing/position_interpolator.h>
+#include <cameraunlock/tracking/head_tracking_session.h>
 
 namespace DL2HT {
 
@@ -46,7 +43,7 @@ public:
     Mod& operator=(const Mod&) = delete;
 
 private:
-    Mod() = default;
+    Mod() : m_session(m_udpReceiver) {}
     ~Mod() = default;
 
     bool LoadConfig();
@@ -58,19 +55,7 @@ private:
 
     Config m_config;
     cameraunlock::UdpReceiver m_udpReceiver;
-    cameraunlock::PoseInterpolator m_poseInterpolator;
-    cameraunlock::TrackingProcessor m_processor;
-    int64_t m_lastReceiveTimestamp = 0;
-
-    // Position processing (6DOF)
-    cameraunlock::PositionProcessor m_positionProcessor;
-    cameraunlock::PositionInterpolator m_positionInterpolator;
-
-    // Tracking-mode cycle (Page Up / Ctrl+Shift+G):
-    //   0 = normal (rotation + position both active)
-    //   1 = rotation only (position disabled)
-    //   2 = position only (rotation disabled)
-    std::atomic<int> m_trackingMode{0};
+    cameraunlock::HeadTrackingSession<cameraunlock::UdpReceiver> m_session;
 
     // Reticle overlay
     bool m_reticleEnabled = true;
@@ -80,17 +65,15 @@ private:
 
     // Timing for frame-rate independent processing
     uint64_t m_lastProcessTime = 0;
-    float m_lastDeltaTime = 0.016f;  // cached for GetPositionOffset to reuse
 
     // Cached rotation from last GetProcessedRotation
-    // Used by GetPositionOffset and to prevent re-processing
-    // when MoveCameraHook fires multiple times per frame (shadows, reflections, etc.)
+    // Used to prevent re-processing when MoveCameraHook fires multiple
+    // times per frame (shadows, reflections, etc.)
     float m_cachedYaw = 0.0f;
     float m_cachedPitch = 0.0f;
     float m_cachedRoll = 0.0f;
     bool m_cachedValid = false;
 
-    bool m_hasCentered = false;
     bool m_cameraHookInstalled = false;
     bool m_inputHookInstalled = false;
 };

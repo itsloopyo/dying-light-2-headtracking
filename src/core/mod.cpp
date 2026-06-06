@@ -41,12 +41,12 @@ bool Mod::Initialize() {
         Logger::Instance().Warning("Using default configuration");
     }
 
-    // Initialize TrackingProcessor with sensitivity settings
+    // Configure the tracking session's rotation pipeline
     cameraunlock::SensitivitySettings sensitivity;
     sensitivity.yaw = m_config.yawMultiplier;
     sensitivity.pitch = m_config.pitchMultiplier;
     sensitivity.roll = m_config.rollMultiplier;
-    m_processor.SetSensitivity(sensitivity);
+    m_session.GetProcessor().SetSensitivity(sensitivity);
 
     Logger::Instance().Info("TrackingProcessor initialized with sensitivity: yaw=%.2f pitch=%.2f roll=%.2f",
                             sensitivity.yaw, sensitivity.pitch, sensitivity.roll);
@@ -57,19 +57,20 @@ bool Mod::Initialize() {
     // Initialize yaw rotation frame from config
     m_worldLockedYaw.store(m_config.worldLockedYaw);
 
-    // Initialize position processor (6DOF). The config flag seeds the
-    // tracking-mode cycle: positionEnabled=true starts in mode 0 (normal),
-    // positionEnabled=false starts in mode 1 (rotation only).
-    m_trackingMode.store(m_config.positionEnabled ? 0 : 1);
+    // Configure the session's position pipeline (6DOF). The config flag seeds
+    // the tracking mode: positionEnabled=false starts in rotation-only mode.
+    if (!m_config.positionEnabled) {
+        m_session.SetMode(cameraunlock::TrackingMode::RotationOnly);
+    }
     cameraunlock::PositionSettings posSettings(
         m_config.positionSensitivityX, m_config.positionSensitivityY, m_config.positionSensitivityZ,
         m_config.positionLimitX, m_config.positionLimitY, m_config.positionLimitZ, m_config.positionLimitZBack,
         m_config.positionSmoothing,
         m_config.positionInvertX, m_config.positionInvertY, m_config.positionInvertZ
     );
-    m_positionProcessor.SetSettings(posSettings);
+    m_session.GetPositionProcessor().SetSettings(posSettings);
     Logger::Instance().Info("Position processor initialized (%s, sens=%.1f/%.1f/%.1f, limits=%.2f/%.2f/%.2f)",
-                            m_trackingMode.load() == 1 ? "3DOF only" : "6DOF",
+                            m_session.IsPositionActive() ? "6DOF" : "3DOF only",
                             posSettings.sensitivity_x, posSettings.sensitivity_y, posSettings.sensitivity_z,
                             posSettings.limit_x, posSettings.limit_y, posSettings.limit_z);
 
@@ -255,21 +256,9 @@ void Mod::Toggle() {
 }
 
 void Mod::Recenter() {
-    // Store current tracking values as neutral offset
-    m_udpReceiver.Recenter();
-
-    // Also reset the TrackingProcessor's and interpolator's smoothed values
-    m_processor.Reset();
-    m_poseInterpolator.Reset();
+    m_session.Recenter();
     m_lastProcessTime = 0;
-
-    // Recenter position tracking
-    float px, py, pz;
-    if (m_udpReceiver.GetPosition(px, py, pz)) {
-        cameraunlock::PositionData posCenter(px, py, pz);
-        m_positionProcessor.SetCenter(posCenter);
-    }
-    m_positionInterpolator.Reset();
+    m_cachedValid = false;
 
     Logger::Instance().Info("View recentered");
     if (m_config.showNotifications) {
@@ -287,33 +276,20 @@ void Mod::ToggleReticle() {
 }
 
 void Mod::CycleTrackingMode() {
-    int next = (m_trackingMode.load() + 1) % 3;
-    m_trackingMode.store(next);
-
-    // Reset whichever pipeline just got switched off so it doesn't re-emit
-    // a stale value next time the mode rotates back through it.
-    if (next == 1) {
-        m_positionProcessor.Reset();
-        m_positionInterpolator.Reset();
-    } else if (next == 2) {
-        m_processor.Reset();
-        m_poseInterpolator.Reset();
-        m_lastProcessTime = 0;
-        m_cachedValid = false;
-    }
+    cameraunlock::TrackingMode mode = m_session.CycleMode();
 
     const char* label = nullptr;
     const char* notify = nullptr;
-    switch (next) {
-        case 0:
+    switch (mode) {
+        case cameraunlock::TrackingMode::RotationAndPosition:
             label = "Normal (rotation + position)";
             notify = "Tracking: Rotation + Position";
             break;
-        case 1:
+        case cameraunlock::TrackingMode::RotationOnly:
             label = "Rotation only";
             notify = "Tracking: Rotation Only";
             break;
-        case 2:
+        case cameraunlock::TrackingMode::PositionOnly:
             label = "Position only";
             notify = "Tracking: Position Only";
             break;
@@ -341,17 +317,6 @@ void Mod::ToggleYawMode() {
 }
 
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
-    // Tracking-mode cycle: mode 2 = position-only (rotation suppressed).
-    // Return success with zero rotation so the camera hook continues and the
-    // position pipeline still gets to apply its offset. Cache zeros so any
-    // follow-up GetPositionOffset that reads the cached rotation sees them.
-    if (m_trackingMode.load() == 2) {
-        yaw = pitch = roll = 0.0f;
-        m_cachedYaw = m_cachedPitch = m_cachedRoll = 0.0f;
-        m_cachedValid = true;
-        return true;
-    }
-
     // Guard against multiple calls per frame (shadows, reflections, etc.)
     // A 1000μs threshold separates intra-frame passes from distinct frames.
     uint64_t now = GetTimeMicros();
@@ -362,20 +327,6 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
         return m_cachedValid;
     }
 
-    // Get raw data from UDP receiver
-    float rawYaw, rawPitch, rawRoll;
-    if (!m_udpReceiver.GetRotation(rawYaw, rawPitch, rawRoll)) {
-        m_lastProcessTime = now;
-        m_cachedValid = false;
-        return false;
-    }
-
-    // Auto-recenter on first valid tracking frame
-    if (!m_hasCentered) {
-        m_hasCentered = true;
-        Recenter();
-    }
-
     // Calculate delta time for frame-rate independent smoothing
     float deltaTime = 0.016f;  // Default for first call
     if (m_lastProcessTime > 0) {
@@ -384,74 +335,20 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
         if (deltaTime < 0.0001f) deltaTime = 0.0001f;
     }
     m_lastProcessTime = now;
-    m_lastDeltaTime = deltaTime;
 
-    // Detect new tracking samples by comparing receive timestamps
-    int64_t receiveTs = m_udpReceiver.GetLastReceiveTimestamp();
-    bool isNewSample = (receiveTs != m_lastReceiveTimestamp);
-    m_lastReceiveTimestamp = receiveTs;
+    // Run the full tracking pipeline (rotation + position) once per frame
+    m_cachedValid = m_session.Update(deltaTime);
+    m_session.GetRotation(m_cachedYaw, m_cachedPitch, m_cachedRoll);
 
-    // Interpolate between tracking samples (fills in stale frames with extrapolation)
-    cameraunlock::InterpolatedPose interpolated = m_poseInterpolator.Update(
-        rawYaw, rawPitch, rawRoll, isNewSample, deltaTime);
-
-    // Process through the pipeline (applies offset, smoothing, sensitivity)
-    cameraunlock::TrackingPose processed = m_processor.Process(
-        interpolated.yaw, interpolated.pitch, interpolated.roll, deltaTime);
-
-    yaw = processed.yaw;
-    pitch = processed.pitch;
-    roll = processed.roll;
-
-    // Cache result (prevents re-processing on multiple calls per frame,
-    // and provides rotation for GetPositionOffset)
-    m_cachedYaw = yaw;
-    m_cachedPitch = pitch;
-    m_cachedRoll = roll;
-    m_cachedValid = true;
-
-    return true;
+    yaw = m_cachedYaw;
+    pitch = m_cachedPitch;
+    roll = m_cachedRoll;
+    return m_cachedValid;
 }
 
 bool Mod::GetPositionOffset(float& x, float& y, float& z) {
-    // Tracking-mode cycle: mode 1 = rotation-only (position suppressed).
-    if (m_trackingMode.load() == 1) {
-        x = y = z = 0.0f;
-        return false;
-    }
-
-    // Get raw position from UDP receiver
-    float rawX, rawY, rawZ;
-    if (!m_udpReceiver.GetPosition(rawX, rawY, rawZ)) {
-        x = y = z = 0.0f;
-        return false;
-    }
-
-    // Reuse deltaTime from GetProcessedRotation (called earlier this frame).
-    // Computing a fresh delta here would give microseconds of CPU time, not the frame delta.
-    float deltaTime = m_lastDeltaTime;
-
-    // Build PositionData
-    cameraunlock::PositionData rawPos(rawX, rawY, rawZ);
-
-    // Interpolate position
-    cameraunlock::PositionData interpolatedPos = m_positionInterpolator.Update(rawPos, deltaTime);
-
-    // Use cached rotation (set by last GetProcessedRotation call)
-    float yaw = m_cachedYaw;
-    float pitch = m_cachedPitch;
-    float roll = m_cachedRoll;
-    cameraunlock::math::Quat4 headRotQ = cameraunlock::math::Quat4::FromYawPitchRoll(
-        yaw * cameraunlock::math::kDegToRad,
-        pitch * cameraunlock::math::kDegToRad,
-        roll * cameraunlock::math::kDegToRad);
-
-    cameraunlock::math::Vec3 offset = m_positionProcessor.Process(interpolatedPos, headRotQ, deltaTime);
-
-    x = offset.x;
-    y = offset.y;
-    z = offset.z;
-    return true;
+    // Position is computed by the session in GetProcessedRotation's Update call
+    return m_session.GetPositionOffset(x, y, z);
 }
 
 } // namespace DL2HT
