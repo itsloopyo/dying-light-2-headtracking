@@ -52,6 +52,11 @@ if (-not (Test-Path $launcherManifestPath)) {
     throw "launcher-manifest.json not found at: $launcherManifestPath"
 }
 
+$modManifestPath = Join-Path $projectDir "mod.json"
+if (-not (Test-Path $modManifestPath)) {
+    throw "mod.json not found at: $modManifestPath"
+}
+
 $scriptsDir = Join-Path $projectDir "scripts"
 foreach ($script in @("install.cmd", "uninstall.cmd")) {
     $scriptPath = Join-Path $scriptsDir $script
@@ -79,6 +84,11 @@ foreach ($script in @("install.cmd", "uninstall.cmd")) {
 # install/uninstall without shelling into install.cmd.
 Copy-Item $launcherManifestPath -Destination $ghStagingDir -Force
 Write-Host "  launcher-manifest.json" -ForegroundColor Green
+
+# Canonical manifest-driven metadata the launcher ingests to deploy the
+# package declaratively (files, loader, dependencies).
+Copy-Item $modManifestPath -Destination $ghStagingDir -Force
+Write-Host "  mod.json" -ForegroundColor Green
 
 # Copy mod files to plugins subfolder
 $pluginsDir = Join-Path $ghStagingDir "plugins"

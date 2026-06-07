@@ -39,6 +39,28 @@ if (Test-Path $manifest) {
     $errors += "manifest.json not found"
 }
 
+# Check mod.json (canonical launcher manifest) - required fields + version sync
+$modManifest = Join-Path $projectDir "mod.json"
+if (Test-Path $modManifest) {
+    try {
+        $modJson = Get-Content $modManifest | ConvertFrom-Json
+        foreach ($field in @("manifestVersion", "id", "name", "version", "game")) {
+            if (-not $modJson.PSObject.Properties[$field] -or -not "$($modJson.$field)") {
+                $errors += "mod.json missing required field: $field"
+            }
+        }
+        if ($json.version -and $modJson.version -and ($json.version -ne $modJson.version)) {
+            $errors += "mod.json version ($($modJson.version)) does not match manifest.json version ($($json.version))"
+        } else {
+            Write-Host "[OK] mod.json version: $($modJson.version)" -ForegroundColor Green
+        }
+    } catch {
+        $errors += "mod.json is not valid JSON"
+    }
+} else {
+    $errors += "mod.json not found"
+}
+
 # Check CHANGELOG.md
 $changelog = Join-Path $projectDir "CHANGELOG.md"
 if (Test-Path $changelog) {

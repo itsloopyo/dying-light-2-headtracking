@@ -126,6 +126,14 @@ if (Test-Path $launcherManifestPath) {
     $launcherJson | ConvertTo-Json -Depth 10 | Set-Content $launcherManifestPath -NoNewline
 }
 
+# mod.json is the canonical launcher manifest; keep its version in lockstep too.
+$modManifestPath = Join-Path $projectDir "mod.json"
+if (Test-Path $modManifestPath) {
+    $modJson = Get-Content $modManifestPath -Raw | ConvertFrom-Json
+    $modJson.version = $Version
+    $modJson | ConvertTo-Json -Depth 10 | Set-Content $modManifestPath -NoNewline
+}
+
 # Step 3: Generate CHANGELOG
 Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
@@ -154,6 +162,7 @@ if (-not $hasExistingTags) {
 Write-Host "Committing version change..." -ForegroundColor Cyan
 git add $manifestPath $changelogPath $installCmdPath
 if (Test-Path $launcherManifestPath) { git add $launcherManifestPath }
+if (Test-Path $modManifestPath) { git add $modManifestPath }
 git commit -m "Release v$Version"
 
 # Step 5: Create tag
