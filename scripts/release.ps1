@@ -21,7 +21,10 @@
 #>
 param(
     [Parameter(Position=0)]
-    [string]$Version = ""
+    [string]$Version = "",
+    # Ship a release even when there are no user-facing commits since the
+    # last tag (writes a maintenance changelog entry instead of aborting).
+    [switch]$Force
 )
 
 Set-StrictMode -Version Latest
@@ -32,6 +35,22 @@ $projectDir = Split-Path -Parent $scriptDir
 $manifestPath = Join-Path $projectDir "manifest.json"
 
 Import-Module (Join-Path $projectDir "cameraunlock-core\powershell\ReleaseWorkflow.psm1") -Force
+
+# Mirrors New-ChangelogFromCommits' insertion so a -Force maintenance entry
+# lands in the same place with the same shape.
+function Add-MaintenanceChangelogEntry {
+    param([string]$Path, [string]$NewVersion)
+    $date = Get-Date -Format 'yyyy-MM-dd'
+    $entry = "## [$NewVersion] - $date`n`n### Changed`n`n- Maintenance release (no user-facing changes).`n`n"
+    $changelog = Get-Content $Path -Raw
+    if ($changelog -match '(?s)(# Changelog.*?)(## \[)') {
+        $changelog = $changelog -replace '(?s)(# Changelog.*?\n\n)', "`$1$entry"
+    } else {
+        $changelog = $changelog -replace '(?s)(# Changelog.*?\n)', "`$1$entry"
+    }
+    $changelog = $changelog.TrimEnd() + "`n"
+    Set-Content $Path $changelog -NoNewline
+}
 
 # Function to get current version from manifest.json
 function Get-CurrentVersion {
@@ -101,42 +120,16 @@ Write-Host "Current version: $currentVersion" -ForegroundColor Gray
 Write-Host "New version:     $Version" -ForegroundColor Green
 Write-Host ""
 
-# Step 1: Update version
-Write-Host "Updating version to $Version..." -ForegroundColor Cyan
-Set-Version $Version
-
-# Step 2: Local Release build (catch breakage before pushing a tag)
-Write-Host "Building Release configuration..." -ForegroundColor Cyan
-& pixi run build-release
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: build-release failed (exit $LASTEXITCODE)" -ForegroundColor Red
-    exit 1
-}
-
-# Also update MOD_VERSION in install.cmd so the installer displays the correct version
 $installCmdPath = Join-Path $scriptDir "install.cmd"
-(Get-Content $installCmdPath -Raw) -replace 'set "MOD_VERSION=.*?"', "set `"MOD_VERSION=$Version`"" | Set-Content $installCmdPath -NoNewline
-
-# launcher-manifest.json carries its own mod_info.version used by external
-# installer tooling; keep it in lockstep with manifest.json.
 $launcherManifestPath = Join-Path $projectDir "launcher-manifest.json"
-if (Test-Path $launcherManifestPath) {
-    $launcherJson = Get-Content $launcherManifestPath -Raw | ConvertFrom-Json
-    $launcherJson.mod_info.version = $Version
-    $launcherJson | ConvertTo-Json -Depth 10 | Set-Content $launcherManifestPath -NoNewline
-}
-
-# mod.json is the canonical launcher manifest; keep its version in lockstep too.
 $modManifestPath = Join-Path $projectDir "mod.json"
-if (Test-Path $modManifestPath) {
-    $modJson = Get-Content $modManifestPath -Raw | ConvertFrom-Json
-    $modJson.version = $Version
-    $modJson | ConvertTo-Json -Depth 10 | Set-Content $modManifestPath -NoNewline
-}
-
-# Step 3: Generate CHANGELOG
-Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
+
+# Step 1: Generate CHANGELOG from commits since last tag. This is the gate
+# that aborts when there are no user-facing commits, so run it BEFORE
+# mutating any version files - a failure here then leaves a clean tree
+# instead of stranding a half-applied version bump with no tag.
+Write-Host "Generating CHANGELOG from commits..." -ForegroundColor Cyan
 $hasExistingTags = git tag -l 2>$null
 if (-not $hasExistingTags) {
     # First release - write a basic changelog entry
@@ -145,17 +138,58 @@ if (-not $hasExistingTags) {
     Set-Content $changelogPath $firstEntry
     Write-Host "  First release - wrote initial CHANGELOG entry" -ForegroundColor Gray
 } else {
-    $changelogArgs = @{
-        ChangelogPath = $changelogPath
-        Version = $Version
-        ArtifactPaths = @(
-            "src/",
-            "cameraunlock-core/",
-            "scripts/install.cmd",
-            "scripts/uninstall.cmd"
-        )
+    try {
+        $changelogArgs = @{
+            ChangelogPath = $changelogPath
+            Version = $Version
+            ArtifactPaths = @(
+                "src/",
+                "cameraunlock-core/",
+                "scripts/install.cmd",
+                "scripts/uninstall.cmd"
+            )
+        }
+        New-ChangelogFromCommits @changelogArgs
+    } catch {
+        if (-not $Force) {
+            Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "No user-facing changes to release. Re-run with -Force for a maintenance release." -ForegroundColor Yellow
+            exit 1
+        }
+        Write-Host "No user-facing commits since last tag - writing maintenance entry (-Force)." -ForegroundColor Yellow
+        Add-MaintenanceChangelogEntry -Path $changelogPath -NewVersion $Version
     }
-    New-ChangelogFromCommits @changelogArgs
+}
+
+# Step 2: Update version in manifest.json (canonical), then mirror into the
+# install.cmd MOD_VERSION and the launcher/mod manifests.
+Write-Host "Updating version to $Version..." -ForegroundColor Cyan
+Set-Version $Version
+
+# Also update MOD_VERSION in install.cmd so the installer displays the correct version
+(Get-Content $installCmdPath -Raw) -replace 'set "MOD_VERSION=.*?"', "set `"MOD_VERSION=$Version`"" | Set-Content $installCmdPath -NoNewline
+
+# launcher-manifest.json carries its own mod_info.version used by external
+# installer tooling; keep it in lockstep with manifest.json.
+if (Test-Path $launcherManifestPath) {
+    $launcherJson = Get-Content $launcherManifestPath -Raw | ConvertFrom-Json
+    $launcherJson.mod_info.version = $Version
+    $launcherJson | ConvertTo-Json -Depth 10 | Set-Content $launcherManifestPath -NoNewline
+}
+
+# mod.json is the canonical launcher manifest; keep its version in lockstep too.
+if (Test-Path $modManifestPath) {
+    $modJson = Get-Content $modManifestPath -Raw | ConvertFrom-Json
+    $modJson.version = $Version
+    $modJson | ConvertTo-Json -Depth 10 | Set-Content $modManifestPath -NoNewline
+}
+
+# Step 3: Local Release build (catch breakage before pushing a tag)
+Write-Host "Building Release configuration..." -ForegroundColor Cyan
+& pixi run build-release
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: build-release failed (exit $LASTEXITCODE)" -ForegroundColor Red
+    exit 1
 }
 
 # Step 4: Commit
