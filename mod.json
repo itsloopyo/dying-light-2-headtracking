@@ -1,32 +1,31 @@
 {
-  "manifestVersion": 1,
-  "id": "dying-light-2",
-  "name": "DL2 Head Tracking",
-  "version": "1.2.1",
-  "game": "dying-light-2",
+    "manifestVersion":  1,
+    "id":  "dying-light-2",
+    "name":  "DL2 Head Tracking",
+    "version":  "1.2.2",
+    "game":  "dying-light-2",
+    "loader":  {
+                   "type":  "ultimate-asi-loader",
+                   "version":  "9",
+                   "filename":  "winmm.dll"
+               },
+    "dependencies":  [
 
-  "loader": {
-    "type": "ultimate-asi-loader",
-    "version": "9",
-    "filename": "winmm.dll"
-  },
+                     ],
+    "runtimeRequirements":  [
 
-  "dependencies": [],
-
-  "runtimeRequirements": [],
-
-  "files": [
-    {
-      "source": "DL2HeadTracking.asi",
-      "target": "ph/work/bin/x64/DL2HeadTracking.asi"
-    },
-    {
-      "source": "HeadTracking.ini",
-      "target": "ph/work/bin/x64/HeadTracking.ini"
-    }
-  ],
-
-  "configPaths": [
-    "ph/work/bin/x64/HeadTracking.ini"
-  ]
+                            ],
+    "files":  [
+                  {
+                      "source":  "DL2HeadTracking.asi",
+                      "target":  "ph/work/bin/x64/DL2HeadTracking.asi"
+                  },
+                  {
+                      "source":  "HeadTracking.ini",
+                      "target":  "ph/work/bin/x64/HeadTracking.ini"
+                  }
+              ],
+    "configPaths":  [
+                        "ph/work/bin/x64/HeadTracking.ini"
+                    ]
 }

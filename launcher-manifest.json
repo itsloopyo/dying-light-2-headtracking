@@ -1,34 +1,35 @@
 {
-  "schema_version": 2,
-  "mod_info": {
-    "name": "DL2HeadTracking",
-    "version": "1.2.1",
-    "game_id": "dying-light-2"
-  },
-  "strategy": "AsiLoader",
-  "delivery_mode": "manifest",
+    "schema_version":  2,
+    "mod_info":  {
+                     "name":  "DL2HeadTracking",
+                     "version":  "1.2.2",
+                     "game_id":  "dying-light-2"
+                 },
+    "strategy":  "AsiLoader",
+    "delivery_mode":  "manifest",
+    "loader":  {
+                   "seed":  [
+                                {
+                                    "target":  "ph/work/bin/x64/HeadTracking.ini",
+                                    "content_b64":  "OyBETDIgSGVhZCBUcmFja2luZyBDb25maWd1cmF0aW9uCjsgRGVsZXRlIHRoaXMgZmlsZSB0byByZXNldCB0byBkZWZhdWx0cwoKW05ldHdvcmtdCjsgVURQIHBvcnQgZm9yIE9wZW5UcmFjayBkYXRhIChkZWZhdWx0OiA0MjQyKQpVRFBQb3J0PTQyNDIKCltTZW5zaXRpdml0eV0KOyBSb3RhdGlvbiBzZW5zaXRpdml0eSBtdWx0aXBsaWVycyAoMS4wID0gMToxKQpZYXdNdWx0aXBsaWVyPTEuMApQaXRjaE11bHRpcGxpZXI9MS4wClJvbGxNdWx0aXBsaWVyPTEuMAoKW1Bvc2l0aW9uXQo7IFBvc2l0aW9uIHRyYWNraW5nIHNlbnNpdGl2aXR5ICgwLjEtMTAuMCwgaGlnaGVyID0gbW9yZSBtb3ZlbWVudCkKU2Vuc2l0aXZpdHlYPTIuMApTZW5zaXRpdml0eVk9Mi4wClNlbnNpdGl2aXR5Wj0yLjAKOyBQb3NpdGlvbiBsaW1pdHMgaW4gbWV0ZXJzIChob3cgZmFyIHRoZSBjYW1lcmEgY2FuIG1vdmUpCkxpbWl0WD0wLjMwCkxpbWl0WT0wLjIwCkxpbWl0Wj0wLjQwCjsgQmFja3dhcmQgbGVhbiBsaW1pdCAocHJldmVudHMgY2FtZXJhIGNsaXBwaW5nIHRocm91Z2ggcGxheWVyIG1vZGVsKQpMaW1pdFpCYWNrPTAuMTAKOyBTbW9vdGhpbmcgZmFjdG9yICgwLjAgPSBub25lLCAwLjk5ID0gbWF4aW11bSkKU21vb3RoaW5nPTAuMTUKOyBJbnZlcnQgcG9zaXRpb24gYXhlcwpJbnZlcnRYPWZhbHNlCkludmVydFk9ZmFsc2UKSW52ZXJ0Wj1mYWxzZQo7IEVuYWJsZS9kaXNhYmxlIHBvc2l0aW9uIHRyYWNraW5nICg2RE9GKQpFbmFibGVkPXRydWUKCltIb3RrZXlzXQo7IFZpcnR1YWwga2V5IGNvZGVzIChoZXgpLiBFdmVyeSBhY3Rpb24gYWxzbyBoYXMgYSBDdHJsK1NoaWZ0KzxsZXR0ZXI+CjsgY2hvcmQgZmFsbGJhY2sgKHNlZSBSRUFETUUpLgpUb2dnbGVLZXk9MHgyMyAgICA7IEVuZCAtIEVuYWJsZS9kaXNhYmxlIGhlYWQgdHJhY2tpbmcKUmVjZW50ZXJLZXk9MHgyNCAgOyBIb21lIC0gUmVjZW50ZXIgdmlldwpUcmFja2luZ01vZGVLZXk9MHgyMSA7IFBhZ2UgVXAgLSBDeWNsZSB0cmFja2luZyBtb2RlIChub3JtYWwgLyByb3RhdGlvbiBvbmx5IC8gcG9zaXRpb24gb25seSkKWWF3TW9kZUtleT0weDIyICAgOyBQYWdlIERvd24gLSBUb2dnbGUgeWF3IG1vZGUgKGNhbWVyYS1sb2NhbCAvIHdvcmxkLWxvY2tlZCkKUmV0aWNsZVRvZ2dsZUtleT0weDJkICA7IEluc2VydCAtIFRvZ2dsZSByZXRpY2xlCgpbUm90YXRpb25dCjsgWWF3IHJvdGF0aW9uIGZyYW1lLgo7ICAgZmFsc2UgPSBjYW1lcmEtbG9jYWwgKGRlZmF1bHQpIC0geWF3IHJvdGF0ZXMgYXJvdW5kIGhlYWQtdXA7IHBpdGNoZWQtZG93bgo7ICAgICAgICAgIHlhdyBzd2VlcHMgYSBjb25lIGFuZCB0aWx0cyB0aGUgaG9yaXpvbi4KOyAgIHRydWUgID0gd29ybGQtbG9ja2VkIC0geWF3IHJvdGF0ZXMgYXJvdW5kIHdvcmxkLXVwOyBob3Jpem9uIHN0YXlzIGxldmVsLgpXb3JsZExvY2tlZFlhdz1mYWxzZQoKW1JldGljbGVdCjsgU2hvdyB0aGUgaGVhZCB0cmFja2luZyByZXRpY2xlIG92ZXJsYXkKRW5hYmxlZD10cnVlCgpbR2VuZXJhbF0KOyBBdXRvLWVuYWJsZSB0cmFja2luZyBvbiBnYW1lIHN0YXJ0CkF1dG9FbmFibGU9dHJ1ZQo7IFNob3cgb24tc2NyZWVuIG5vdGlmaWNhdGlvbnMKU2hvd05vdGlmaWNhdGlvbnM9dHJ1ZQo="
+                                }
+                            ]
+               },
+    "files":  [
+                  {
+                      "source":  "vendor/ultimate-asi-loader/dinput8.dll",
+                      "target":  "ph/work/bin/x64/winmm.dll",
+                      "backup":  true
+                  },
+                  {
+                      "source":  "plugins/DL2HeadTracking.asi",
+                      "target":  "ph/work/bin/x64/DL2HeadTracking.asi"
+                  }
+              ],
+    "runtime_requirements":  [
 
-  "loader": {
-    "seed": [
-      {
-        "target": "ph/work/bin/x64/HeadTracking.ini",
-        "content_b64": "OyBETDIgSGVhZCBUcmFja2luZyBDb25maWd1cmF0aW9uCjsgRGVsZXRlIHRoaXMgZmlsZSB0byByZXNldCB0byBkZWZhdWx0cwoKW05ldHdvcmtdCjsgVURQIHBvcnQgZm9yIE9wZW5UcmFjayBkYXRhIChkZWZhdWx0OiA0MjQyKQpVRFBQb3J0PTQyNDIKCltTZW5zaXRpdml0eV0KOyBSb3RhdGlvbiBzZW5zaXRpdml0eSBtdWx0aXBsaWVycyAoMS4wID0gMToxKQpZYXdNdWx0aXBsaWVyPTEuMApQaXRjaE11bHRpcGxpZXI9MS4wClJvbGxNdWx0aXBsaWVyPTEuMAoKW1Bvc2l0aW9uXQo7IFBvc2l0aW9uIHRyYWNraW5nIHNlbnNpdGl2aXR5ICgwLjEtMTAuMCwgaGlnaGVyID0gbW9yZSBtb3ZlbWVudCkKU2Vuc2l0aXZpdHlYPTIuMApTZW5zaXRpdml0eVk9Mi4wClNlbnNpdGl2aXR5Wj0yLjAKOyBQb3NpdGlvbiBsaW1pdHMgaW4gbWV0ZXJzIChob3cgZmFyIHRoZSBjYW1lcmEgY2FuIG1vdmUpCkxpbWl0WD0wLjMwCkxpbWl0WT0wLjIwCkxpbWl0Wj0wLjQwCjsgQmFja3dhcmQgbGVhbiBsaW1pdCAocHJldmVudHMgY2FtZXJhIGNsaXBwaW5nIHRocm91Z2ggcGxheWVyIG1vZGVsKQpMaW1pdFpCYWNrPTAuMTAKOyBTbW9vdGhpbmcgZmFjdG9yICgwLjAgPSBub25lLCAwLjk5ID0gbWF4aW11bSkKU21vb3RoaW5nPTAuMTUKOyBJbnZlcnQgcG9zaXRpb24gYXhlcwpJbnZlcnRYPWZhbHNlCkludmVydFk9ZmFsc2UKSW52ZXJ0Wj1mYWxzZQo7IEVuYWJsZS9kaXNhYmxlIHBvc2l0aW9uIHRyYWNraW5nICg2RE9GKQpFbmFibGVkPXRydWUKCltIb3RrZXlzXQo7IFZpcnR1YWwga2V5IGNvZGVzIChoZXgpLiBFdmVyeSBhY3Rpb24gYWxzbyBoYXMgYSBDdHJsK1NoaWZ0KzxsZXR0ZXI+CjsgY2hvcmQgZmFsbGJhY2sgKHNlZSBSRUFETUUpLgpUb2dnbGVLZXk9MHgyMyAgICA7IEVuZCAtIEVuYWJsZS9kaXNhYmxlIGhlYWQgdHJhY2tpbmcKUmVjZW50ZXJLZXk9MHgyNCAgOyBIb21lIC0gUmVjZW50ZXIgdmlldwpUcmFja2luZ01vZGVLZXk9MHgyMSA7IFBhZ2UgVXAgLSBDeWNsZSB0cmFja2luZyBtb2RlIChub3JtYWwgLyByb3RhdGlvbiBvbmx5IC8gcG9zaXRpb24gb25seSkKWWF3TW9kZUtleT0weDIyICAgOyBQYWdlIERvd24gLSBUb2dnbGUgeWF3IG1vZGUgKGNhbWVyYS1sb2NhbCAvIHdvcmxkLWxvY2tlZCkKUmV0aWNsZVRvZ2dsZUtleT0weDJkICA7IEluc2VydCAtIFRvZ2dsZSByZXRpY2xlCgpbUm90YXRpb25dCjsgWWF3IHJvdGF0aW9uIGZyYW1lLgo7ICAgZmFsc2UgPSBjYW1lcmEtbG9jYWwgKGRlZmF1bHQpIC0geWF3IHJvdGF0ZXMgYXJvdW5kIGhlYWQtdXA7IHBpdGNoZWQtZG93bgo7ICAgICAgICAgIHlhdyBzd2VlcHMgYSBjb25lIGFuZCB0aWx0cyB0aGUgaG9yaXpvbi4KOyAgIHRydWUgID0gd29ybGQtbG9ja2VkIC0geWF3IHJvdGF0ZXMgYXJvdW5kIHdvcmxkLXVwOyBob3Jpem9uIHN0YXlzIGxldmVsLgpXb3JsZExvY2tlZFlhdz1mYWxzZQoKW1JldGljbGVdCjsgU2hvdyB0aGUgaGVhZCB0cmFja2luZyByZXRpY2xlIG92ZXJsYXkKRW5hYmxlZD10cnVlCgpbR2VuZXJhbF0KOyBBdXRvLWVuYWJsZSB0cmFja2luZyBvbiBnYW1lIHN0YXJ0CkF1dG9FbmFibGU9dHJ1ZQo7IFNob3cgb24tc2NyZWVuIG5vdGlmaWNhdGlvbnMKU2hvd05vdGlmaWNhdGlvbnM9dHJ1ZQo="
-      }
-    ]
-  },
+                             ],
+    "dependencies":  [
 
-  "files": [
-    {
-      "source": "vendor/ultimate-asi-loader/dinput8.dll",
-      "target": "ph/work/bin/x64/winmm.dll",
-      "backup": true
-    },
-    {
-      "source": "plugins/DL2HeadTracking.asi",
-      "target": "ph/work/bin/x64/DL2HeadTracking.asi"
-    }
-  ],
-
-  "runtime_requirements": [],
-  "dependencies": []
+                     ]
 }
