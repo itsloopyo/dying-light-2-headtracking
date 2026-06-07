@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.4] - 2026-06-07
+
+### Other
+
+- powershell: stop redirecting git stderr in Invoke-VersionCommit
+
 ## [1.2.2] - 2026-06-07
 
 ### Added

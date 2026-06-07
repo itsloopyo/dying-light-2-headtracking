@@ -2,7 +2,7 @@
     "manifestVersion":  1,
     "id":  "dying-light-2",
     "name":  "DL2 Head Tracking",
-    "version":  "1.2.3",
+    "version":  "1.2.4",
     "game":  "dying-light-2",
     "loader":  {
                    "type":  "ultimate-asi-loader",
