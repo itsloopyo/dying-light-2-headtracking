@@ -202,7 +202,7 @@ pixi run build-release
 **Manual CMake:**
 ```bash
 # Configure
-cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake -B build -A x64
 
 # Build Debug
 cmake --build build --config Debug
