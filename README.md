@@ -274,6 +274,12 @@ dying-light-2-headtracking/
 3. Check logs at `<game dir>/ph/work/bin/x64/HeadTracking.log`
 4. Attach Visual Studio debugger to `DyingLightGame_x64_rwdi.exe` if needed
 
+## Community & Support
+
+- Discord: [Loop's Head Tracking Hangout](https://discord.com/invite/dxyZdyFNT9) - setup help, bug reports, and new-release announcements
+- [Lopari](https://lopari.app) - free Windows launcher with one-click install and launch for the released head-tracking mods
+- [Headcam](https://headcam.app) - use your iPhone or Android phone as the head tracker
+
 ## License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
