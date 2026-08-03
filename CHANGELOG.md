@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-08-03
+
+### Fixed
+
+- show full control set in pixi install via shared -Controls
+
 ## [1.2.4] - 2026-06-07
 
 ### Other
