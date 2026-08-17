@@ -52,11 +52,6 @@ if (-not (Test-Path $launcherManifestPath)) {
     throw "launcher-manifest.json not found at: $launcherManifestPath"
 }
 
-$modManifestPath = Join-Path $projectDir "mod.json"
-if (-not (Test-Path $modManifestPath)) {
-    throw "mod.json not found at: $modManifestPath"
-}
-
 $scriptsDir = Join-Path $projectDir "scripts"
 foreach ($script in @("install.cmd", "uninstall.cmd")) {
     $scriptPath = Join-Path $scriptsDir $script
@@ -80,15 +75,20 @@ foreach ($script in @("install.cmd", "uninstall.cmd")) {
     Write-Host "  $script" -ForegroundColor Green
 }
 
-# Launcher manifest: external installer tooling reads this to drive
-# install/uninstall without shelling into install.cmd.
-Copy-Item $launcherManifestPath -Destination $ghStagingDir -Force
-Write-Host "  launcher-manifest.json" -ForegroundColor Green
-
-# Canonical manifest-driven metadata the launcher ingests to deploy the
-# package declaratively (files, loader, dependencies).
-Copy-Item $modManifestPath -Destination $ghStagingDir -Force
-Write-Host "  mod.json" -ForegroundColor Green
+# The only launcher manifest. Stamp the real release version into
+# mod_info.version and drop it at the installer ZIP root; the launcher deploys
+# the package from files/loader/runtime_requirements/dependencies.
+$manifestJson = Get-Content $launcherManifestPath -Raw | ConvertFrom-Json
+$manifestJson.mod_info.version = $version
+# Set-Content -Encoding UTF8 on Windows PowerShell 5.1 writes a BOM, which
+# serde_json rejects. Write through the .NET API with a no-BOM encoder.
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText(
+    (Join-Path $ghStagingDir "launcher-manifest.json"),
+    ($manifestJson | ConvertTo-Json -Depth 10),
+    $utf8NoBom
+)
+Write-Host "  launcher-manifest.json (v$version)" -ForegroundColor Green
 
 # Copy mod files to plugins subfolder
 $pluginsDir = Join-Path $ghStagingDir "plugins"

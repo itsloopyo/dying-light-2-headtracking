@@ -122,7 +122,6 @@ Write-Host ""
 
 $installCmdPath = Join-Path $scriptDir "install.cmd"
 $launcherManifestPath = Join-Path $projectDir "launcher-manifest.json"
-$modManifestPath = Join-Path $projectDir "mod.json"
 $changelogPath = Join-Path $projectDir "CHANGELOG.md"
 
 # Step 1: Generate CHANGELOG from commits since last tag. This is the gate
@@ -162,7 +161,7 @@ if (-not $hasExistingTags) {
 }
 
 # Step 2: Update version in manifest.json (canonical), then mirror into the
-# install.cmd MOD_VERSION and the launcher/mod manifests.
+# install.cmd MOD_VERSION and the launcher manifest.
 Write-Host "Updating version to $Version..." -ForegroundColor Cyan
 Set-Version $Version
 
@@ -177,13 +176,6 @@ if (Test-Path $launcherManifestPath) {
     $launcherJson | ConvertTo-Json -Depth 10 | Set-Content $launcherManifestPath -NoNewline
 }
 
-# mod.json is the canonical launcher manifest; keep its version in lockstep too.
-if (Test-Path $modManifestPath) {
-    $modJson = Get-Content $modManifestPath -Raw | ConvertFrom-Json
-    $modJson.version = $Version
-    $modJson | ConvertTo-Json -Depth 10 | Set-Content $modManifestPath -NoNewline
-}
-
 # Step 3: Local Release build (catch breakage before pushing a tag)
 Write-Host "Building Release configuration..." -ForegroundColor Cyan
 & pixi run build-release
@@ -196,7 +188,6 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Committing version change..." -ForegroundColor Cyan
 git add $manifestPath $changelogPath $installCmdPath
 if (Test-Path $launcherManifestPath) { git add $launcherManifestPath }
-if (Test-Path $modManifestPath) { git add $modManifestPath }
 git commit -m "Release v$Version"
 
 # Step 5: Create tag

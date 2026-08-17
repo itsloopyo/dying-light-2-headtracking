@@ -39,26 +39,30 @@ if (Test-Path $manifest) {
     $errors += "manifest.json not found"
 }
 
-# Check mod.json (canonical launcher manifest) - required fields + version sync
-$modManifest = Join-Path $projectDir "mod.json"
-if (Test-Path $modManifest) {
+# Check launcher-manifest.json (the only launcher manifest) - required fields
+# + version sync with manifest.json
+$launcherManifest = Join-Path $projectDir "launcher-manifest.json"
+if (Test-Path $launcherManifest) {
     try {
-        $modJson = Get-Content $modManifest | ConvertFrom-Json
-        foreach ($field in @("manifestVersion", "id", "name", "version", "game")) {
-            if (-not $modJson.PSObject.Properties[$field] -or -not "$($modJson.$field)") {
-                $errors += "mod.json missing required field: $field"
+        $launcherJson = Get-Content $launcherManifest | ConvertFrom-Json
+        foreach ($field in @("schema_version", "mod_info", "delivery_mode")) {
+            if (-not $launcherJson.PSObject.Properties[$field] -or -not "$($launcherJson.$field)") {
+                $errors += "launcher-manifest.json missing required field: $field"
             }
         }
-        if ($json.version -and $modJson.version -and ($json.version -ne $modJson.version)) {
-            $errors += "mod.json version ($($modJson.version)) does not match manifest.json version ($($json.version))"
+        if ($launcherJson.delivery_mode -ne "manifest") {
+            $errors += "launcher-manifest.json delivery_mode must be 'manifest' (is '$($launcherJson.delivery_mode)')"
+        }
+        if ($json.version -and $launcherJson.mod_info.version -and ($json.version -ne $launcherJson.mod_info.version)) {
+            $errors += "launcher-manifest.json version ($($launcherJson.mod_info.version)) does not match manifest.json version ($($json.version))"
         } else {
-            Write-Host "[OK] mod.json version: $($modJson.version)" -ForegroundColor Green
+            Write-Host "[OK] launcher-manifest.json version: $($launcherJson.mod_info.version)" -ForegroundColor Green
         }
     } catch {
-        $errors += "mod.json is not valid JSON"
+        $errors += "launcher-manifest.json is not valid JSON"
     }
 } else {
-    $errors += "mod.json not found"
+    $errors += "launcher-manifest.json not found"
 }
 
 # Check CHANGELOG.md
