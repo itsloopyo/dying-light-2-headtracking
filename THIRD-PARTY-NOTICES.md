@@ -9,9 +9,9 @@ verbatim as required by those licenses.
 Pre-built binary shipped in `vendor/ultimate-asi-loader/dinput8.dll` (and
 as `winmm.dll` in the Nexus ZIP). Licensed under the MIT License.
 
-- **Version bundled**: v9.7.1 (released 2026-04-03)
+- **Version bundled**: v9.7.2 (released 2026-04-03)
 - **Upstream**: https://github.com/ThirteenAG/Ultimate-ASI-Loader
-- **Source archive**: https://github.com/ThirteenAG/Ultimate-ASI-Loader/archive/refs/tags/v9.7.1.zip
+- **Source archive**: https://github.com/ThirteenAG/Ultimate-ASI-Loader/archive/refs/tags/v9.7.2.zip
 
 ```
 MIT License
