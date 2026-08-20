@@ -19,6 +19,12 @@ bool Logger::Initialize() {
 
     // Get log file path
     std::string logPath = GetModulePath("HeadTracking.log");
+    // Keep one generation. The log is truncated per run so a bug report carries
+    // only the current session, but a crash-then-relaunch would otherwise
+    // destroy the very log that recorded the crash.
+    MoveFileExA(logPath.c_str(),
+                GetModulePath("HeadTracking.prev.log").c_str(),
+                MOVEFILE_REPLACE_EXISTING);
     m_logFile.open(logPath, std::ios::out | std::ios::trunc);
     if (!m_logFile.is_open()) {
         return false;

@@ -13,7 +13,7 @@ set "MOD_VERSION=1.3.0"
 set "STATE_FILE=.headtracking-state.json"
 set "FRAMEWORK_TYPE=ASILoader"
 set "ASI_LOADER_NAME=winmm.dll"
-set "MOD_CONTROLS=Controls:&echo   Home - Recenter head tracking&echo   End  - Toggle head tracking on/off"
+set "MOD_CONTROLS=Controls:&echo   End  - Toggle head tracking on/off"
 :: ASI_LOADER_NAME is the filename the ASI DLL is renamed to. DL2 and most
 :: modern games use winmm.dll; older ones use dinput8.dll or xinput1_3.dll.
 :: vendor/ultimate-asi-loader/dinput8.dll is the bundled source; we copy it

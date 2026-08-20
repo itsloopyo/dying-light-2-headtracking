@@ -68,11 +68,4 @@ bool IsValidHotkeyCode(int vkCode) {
     return false;
 }
 
-std::string FormatHotkeyConfig(int toggleKey, int recenterKey) {
-    std::ostringstream ss;
-    ss << VirtualKeyToString(toggleKey) << "=Toggle, ";
-    ss << VirtualKeyToString(recenterKey) << "=Recenter";
-    return ss.str();
-}
-
 } // namespace DL2HT

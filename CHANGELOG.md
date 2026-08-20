@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Removed mod-side recentring. The `Home` key, the `Ctrl+Shift+T` chord and the
+  `[Hotkeys] RecenterKey` INI entry are gone, and the mod now applies the
+  tracker pose as absolute. Centre the view in your tracker app instead
+  (opentrack's Center bind, or the CENTER button in a Headcam app); keeping a
+  second centre in the mod drifted against the tracker's own.
+- `HeadTracking.log` now keeps one previous generation as
+  `HeadTracking.prev.log`, so a crash-then-relaunch no longer truncates away
+  the log that recorded the crash.
+- The UDP receiver's diagnostics (first packet received and its sender, bind
+  retries, parse failures) are forwarded to `HeadTracking.log`, so a
+  "no head tracking" report can be answered from the log alone.
+- Smoothing is now two user-configurable INI keys in a new `[Smoothing]`
+  section: `LocalSmoothing` (default `0.0`) for a tracker running on this
+  machine (loopback) and `RemoteSmoothing` (default `0.15`) for a tracker on a
+  remote network device. The value is selected per connection from the packet
+  source address and re-evaluated every frame, so switching trackers needs no
+  restart.
+- Removed the `[Position] Smoothing` key and the hidden 0.15 baseline floor.
+  The two new keys cover rotation and position, so local users get
+  zero-latency tracking by default.
+
+### Fixed
+
+- `HeadTracking.log` is opened and rotated before the mod waits for the engine
+  DLL, not after. A renamed engine DLL, or the ASI loading into a launcher or
+  wrapper process, previously produced no log at all and left the previous
+  run's log in place, so the user sent an earlier launch's file believing it
+  was the current one. The wait now records its outcome, including the
+  10 second timeout.
+
 ## [1.3.0] - 2026-08-03
 
 ### Fixed

@@ -113,7 +113,7 @@ struct Quat {
         float d = from.Dot(to);
         if (d >= 0.999999f) return Quat();
         if (d <= -0.999999f) {
-            // 180° — use arbitrary perpendicular axis
+            // 180° - use arbitrary perpendicular axis
             Vec3 perp = (fabsf(from.x) < 0.9f) ? Vec3(1,0,0) : Vec3(0,1,0);
             Vec3 axis = from.Cross(perp).Normalized();
             return Quat(0, axis.x, axis.y, axis.z);
@@ -148,7 +148,7 @@ struct Quat {
 //
 // Target forward is computed from spherical coordinates in the camera's local
 // frame, so yaw produces pure screen-horizontal motion and pitch produces
-// pure screen-vertical motion at any camera orientation — no "sticky spots"
+// pure screen-vertical motion at any camera orientation - no "sticky spots"
 // during compound rotations.
 //
 // A shortest-arc quaternion rotates the camera frame from original to target,

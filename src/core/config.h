@@ -15,7 +15,6 @@ struct Config {
 
     // Hotkeys (Virtual Key codes)
     int toggleKey = DEFAULT_TOGGLE_KEY;
-    int recenterKey = DEFAULT_RECENTER_KEY;
     int trackingModeKey = DEFAULT_TRACKING_MODE_KEY;  // Page Up - cycles tracking mode (legacy INI key: PositionToggleKey)
     int yawModeKey = DEFAULT_YAW_MODE_KEY;
     int reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
@@ -31,11 +30,17 @@ struct Config {
     float positionLimitY = 0.20f;
     float positionLimitZ = 0.40f;
     float positionLimitZBack = 0.10f;  // backward lean limit (asymmetric)
-    float positionSmoothing = 0.15f;
     bool positionInvertX = false;
     bool positionInvertY = false;
     bool positionInvertZ = false;
     bool positionEnabled = true;
+
+    // Smoothing settings. Chosen per connection from the packet source
+    // address: a tracker on this machine (loopback) uses localSmoothing, a
+    // remote network device uses remoteSmoothing. Both cover rotation and
+    // position; there is no separate position smoothing setting.
+    float localSmoothing = 0.0f;
+    float remoteSmoothing = 0.15f;
 
     // Reticle settings
     bool reticleEnabled = true;

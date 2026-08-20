@@ -9,6 +9,18 @@ static HANDLE g_initThreadHandle = nullptr;
 unsigned __stdcall InitThread(void* lpParam) {
     (void)lpParam;
 
+    // The log opens (and rotates) before the wait below, not after it. A
+    // renamed engine DLL or the ASI loading into a wrapper process used to
+    // return from the wait with the log never opened and the previous run's
+    // log never rotated, so the user sent an earlier launch's file believing
+    // it was the current one, and "engine DLL never appeared" was
+    // indistinguishable from "ASI loader not installed".
+    if (!DL2HT::Logger::Instance().Initialize()) {
+        return 1;
+    }
+    DL2HT::Logger::Instance().Info("DL2 Head Tracking v%s attached; waiting for %s",
+                                   DL2HT::DL2HT_VERSION, DL2HT::DL2_GAME_DLL);
+
     // Wait for game DLL to be loaded
     int waitAttempts = 0;
     constexpr int maxWaitAttempts = 100; // 10 seconds max
@@ -16,14 +28,16 @@ unsigned __stdcall InitThread(void* lpParam) {
         Sleep(100);
         waitAttempts++;
         if (waitAttempts >= maxWaitAttempts) {
-            // Not the game process (e.g. launcher) — exit silently
+            DL2HT::Logger::Instance().Warning(
+                "%s did not appear within %d seconds. This is not the game process "
+                "(a launcher or wrapper), or the engine DLL has been renamed. "
+                "Head tracking is inactive here.",
+                DL2HT::DL2_GAME_DLL, maxWaitAttempts / 10);
             return 1;
         }
     }
-
-    // Game DLL found — now it's safe to open the debug console and start logging
-    DL2HT::Logger::Instance().Initialize();
-    DL2HT::Logger::Instance().Info("DL2 Head Tracking v%s attached to game process", DL2HT::DL2HT_VERSION);
+    DL2HT::Logger::Instance().Info("%s loaded after %d ms", DL2HT::DL2_GAME_DLL,
+                                   waitAttempts * 100);
 
     // Additional delay for game initialization
     Sleep(1000);

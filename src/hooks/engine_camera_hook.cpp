@@ -100,13 +100,13 @@ static bool InitializeGameStateDetection() {
         Logger::Instance().Info("Found ILevel::IsLoading at %p", g_gameState.pIsLoadingFunc);
     }
 
-    // ILevel::IsTimerFrozen() const — timer frozen when game is paused
+    // ILevel::IsTimerFrozen() const - timer frozen when game is paused
     g_gameState.pIsTimerFrozenFunc = (IsTimerFrozenFunc_t)GetProcAddress(engineModule, "?IsTimerFrozen@ILevel@@QEBA_NXZ");
     if (g_gameState.pIsTimerFrozenFunc) {
         Logger::Instance().Info("Found ILevel::IsTimerFrozen at %p", g_gameState.pIsTimerFrozenFunc);
     }
 
-    // IBaseCamera::GetFOV() const — returns horizontal FOV in degrees
+    // IBaseCamera::GetFOV() const - returns horizontal FOV in degrees
     g_gameState.pGetFOVFunc = (GetFOVFunc_t)GetProcAddress(engineModule, "?GetFOV@IBaseCamera@@QEBAMXZ");
     if (g_gameState.pGetFOVFunc) {
         Logger::Instance().Info("Found IBaseCamera::GetFOV at %p", g_gameState.pGetFOVFunc);
@@ -395,7 +395,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         float bLeft  = toAimX*headLeftX   + toAimY*headLeftY   + toAimZ*headLeftZ;
 
         if (bDepth > 0.01f) {
-            // DL2's engine forward convention inverts the projection —
+            // DL2's engine forward convention inverts the projection -
             // empirically verified: positive bLeft → screen right, negative bUp → screen up.
             SetCrosshairProjection(bLeft / bDepth, -bUp / bDepth);
         } else {
@@ -478,7 +478,7 @@ void RefreshGameplayStateCache() {
     g_gameplayCache.wasLoading.store(loading, std::memory_order_relaxed);
 
     if (wasLoading && !loading) {
-        // Loading just ended — start warmup timer
+        // Loading just ended - start warmup timer
         g_gameplayCache.loadingEndedTick.store(now, std::memory_order_relaxed);
     }
 

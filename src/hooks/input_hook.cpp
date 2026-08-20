@@ -8,9 +8,8 @@
 
 namespace DL2HT {
 
-// Ctrl+Shift+<letter> chord fallbacks (CLAUDE.md cluster: T/Y/U/G/H/J).
+// Ctrl+Shift+<letter> chord fallbacks (CLAUDE.md cluster: Y/U/G/H).
 // Mapping kept in sync with README and with the CLAUDE.md hotkey spec.
-static constexpr int CHORD_RECENTER_VK = 0x54;         // T
 static constexpr int CHORD_TOGGLE_VK = 0x59;           // Y
 static constexpr int CHORD_TRACKING_MODE_VK = 0x47;    // G - cycle tracking mode
 static constexpr int CHORD_YAW_MODE_VK = 0x48;         // H
@@ -32,15 +31,6 @@ static void RegisterHotkeys(const Config& config) {
     g_poller.AddHotkey(CHORD_TOGGLE_VK, ChordGuarded([] {
         Logger::Instance().Debug("Toggle chord (Ctrl+Shift+Y) pressed");
         Mod::Instance().Toggle();
-    }));
-
-    g_poller.AddHotkey(config.recenterKey, NavGuarded([] {
-        Logger::Instance().Debug("Recenter key pressed");
-        Mod::Instance().Recenter();
-    }));
-    g_poller.AddHotkey(CHORD_RECENTER_VK, ChordGuarded([] {
-        Logger::Instance().Debug("Recenter chord (Ctrl+Shift+T) pressed");
-        Mod::Instance().Recenter();
     }));
 
     g_poller.AddHotkey(config.trackingModeKey, NavGuarded([] {
@@ -87,8 +77,8 @@ bool InstallInputHook() {
         return false;
     }
 
-    Logger::Instance().Info("Input hook installed - Toggle: %s, Recenter: %s",
-        VirtualKeyToString(config.toggleKey), VirtualKeyToString(config.recenterKey));
+    Logger::Instance().Info("Input hook installed - Toggle: %s",
+        VirtualKeyToString(config.toggleKey));
 
     return true;
 }

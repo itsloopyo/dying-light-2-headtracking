@@ -18,7 +18,6 @@ public:
     void SetEnabled(bool enabled);
     void Toggle();
 
-    void Recenter();
     void CycleTrackingMode();
     void ToggleYawMode();
     void ToggleReticle();

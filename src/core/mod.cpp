@@ -62,13 +62,32 @@ bool Mod::Initialize() {
     if (!m_config.positionEnabled) {
         m_session.SetMode(cameraunlock::TrackingMode::RotationOnly);
     }
-    cameraunlock::PositionSettings posSettings(
-        m_config.positionSensitivityX, m_config.positionSensitivityY, m_config.positionSensitivityZ,
-        m_config.positionLimitX, m_config.positionLimitY, m_config.positionLimitZ, m_config.positionLimitZBack,
-        m_config.positionSmoothing,
-        m_config.positionInvertX, m_config.positionInvertY, m_config.positionInvertZ
-    );
+    // Field-by-field rather than the positional constructor: PositionSettings
+    // now carries two smoothing floats between the limits and the invert flags,
+    // and a positional call that drops them binds the bools to the smoothing
+    // parameters without a compile error.
+    cameraunlock::PositionSettings posSettings;
+    posSettings.sensitivity_x = m_config.positionSensitivityX;
+    posSettings.sensitivity_y = m_config.positionSensitivityY;
+    posSettings.sensitivity_z = m_config.positionSensitivityZ;
+    posSettings.limit_x = m_config.positionLimitX;
+    posSettings.limit_y = m_config.positionLimitY;
+    posSettings.limit_z = m_config.positionLimitZ;
+    posSettings.limit_z_back = m_config.positionLimitZBack;
+    posSettings.invert_x = m_config.positionInvertX;
+    posSettings.invert_y = m_config.positionInvertY;
+    posSettings.invert_z = m_config.positionInvertZ;
     m_session.GetPositionProcessor().SetSettings(posSettings);
+
+    // After SetSettings, which would otherwise overwrite the smoothing fields.
+    // The session forwards both values to the rotation AND position processors
+    // and re-reads the receiver's connection locality inside every Update() to
+    // pick the one that applies. Without IsRemoteConnection() on the receiver
+    // that selection silently pins to local, so assert the trait.
+    static_assert(decltype(m_session)::kHasRemoteConnection,
+                  "receiver must expose IsRemoteConnection()");
+    m_session.SetLocalSmoothing(m_config.localSmoothing);
+    m_session.SetRemoteSmoothing(m_config.remoteSmoothing);
     Logger::Instance().Info("Position processor initialized (%s, sens=%.1f/%.1f/%.1f, limits=%.2f/%.2f/%.2f)",
                             m_session.IsPositionActive() ? "6DOF" : "3DOF only",
                             posSettings.sensitivity_x, posSettings.sensitivity_y, posSettings.sensitivity_z,
@@ -80,6 +99,13 @@ bool Mod::Initialize() {
         Logger::Instance().Warning("Some hooks failed to initialize - mod may have limited functionality");
         Logger::Instance().Warning("The game will continue loading but head tracking may not work");
     }
+
+    // The receiver's own diagnostics are all one-shot latched (first packet,
+    // bind retry, parse failure), so forwarding them costs a handful of lines
+    // and answers "did tracker data ever arrive" from the log alone.
+    m_udpReceiver.SetLog([](const std::string& msg) {
+        Logger::Instance().Info("UDP: %s", msg.c_str());
+    });
 
     if (!m_udpReceiver.Start(m_config.udpPort)) {
         Logger::Instance().Error("UDP receiver failed to start on port %d", m_config.udpPort);
@@ -112,8 +138,7 @@ bool Mod::Initialize() {
                             m_inputHookInstalled ? "OK" : "FAILED");
 
     // Log hotkey configuration for user reference
-    Logger::Instance().Info("Hotkeys: %s",
-        FormatHotkeyConfig(m_config.toggleKey, m_config.recenterKey).c_str());
+    Logger::Instance().Info("Hotkeys: %s=Toggle", VirtualKeyToString(m_config.toggleKey));
 
     // Show startup notification if enabled
     if (m_config.showNotifications) {
@@ -125,9 +150,7 @@ bool Mod::Initialize() {
 
         // Show hotkey hint after a delay
         std::string hotkeyHint = VirtualKeyToString(m_config.toggleKey);
-        hotkeyHint += "=Toggle, ";
-        hotkeyHint += VirtualKeyToString(m_config.recenterKey);
-        hotkeyHint += "=Recenter";
+        hotkeyHint += "=Toggle";
         ShowNotification(hotkeyHint.c_str());
     }
 
@@ -253,17 +276,6 @@ void Mod::SetEnabled(bool enabled) {
 
 void Mod::Toggle() {
     SetEnabled(!m_enabled.load());
-}
-
-void Mod::Recenter() {
-    m_session.Recenter();
-    m_lastProcessTime = 0;
-    m_cachedValid = false;
-
-    Logger::Instance().Info("View recentered");
-    if (m_config.showNotifications) {
-        ShowNotification("View Recentered");
-    }
 }
 
 void Mod::ToggleReticle() {
