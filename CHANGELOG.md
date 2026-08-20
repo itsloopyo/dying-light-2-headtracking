@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2026-08-20
+
+### Added
+
+- drop mod-side recentring, split smoothing into local and remote
+- remove the splash skipper and its SkipSplash config option
+
 ## [Unreleased]
 
 ### Changed
