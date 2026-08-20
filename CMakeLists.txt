@@ -57,7 +57,6 @@ set(MOD_SOURCES
     src/hooks/input_hook.cpp
     src/hooks/dx_hook.cpp
     src/hooks/crosshair_hook.cpp
-    src/hooks/splash_skipper.cpp
     src/ui/notification.cpp
 )
 

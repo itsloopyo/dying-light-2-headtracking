@@ -8,7 +8,6 @@
 #include "hooks/input_hook.h"
 #include "hooks/dx_hook.h"
 #include "hooks/crosshair_hook.h"
-#include "hooks/splash_skipper.h"
 #include "ui/notification.h"
 
 namespace DL2HT {
@@ -129,10 +128,6 @@ bool Mod::Initialize() {
 
     m_initialized.store(true);
 
-    if (m_config.skipSplash) {
-        StartSplashSkipper();
-    }
-
     Logger::Instance().Info("Initialization complete (camera:%s, input:%s)",
                             m_cameraHookInstalled ? "OK" : "FAILED",
                             m_inputHookInstalled ? "OK" : "FAILED");
@@ -163,8 +158,6 @@ void Mod::Shutdown() {
     }
 
     Logger::Instance().Info("Shutting down...");
-
-    StopSplashSkipper();
 
     // Stop UDP receiver
     m_udpReceiver.Stop();
