@@ -167,15 +167,13 @@ Write-Host "  ph/work/bin/x64/DL2HeadTracking.asi" -ForegroundColor Green
 Copy-Item $iniPath -Destination $nexusGameDir -Force
 Write-Host "  ph/work/bin/x64/HeadTracking.ini" -ForegroundColor Green
 
-# Nexus users extract to the game dir, no install.cmd runs - ship the ASI
-# loader pre-named as winmm.dll so it lands where DL2 will load it from.
-$nexusWinmm = Join-Path $nexusGameDir "winmm.dll"
-Copy-Item $vendorAsiDll -Destination $nexusWinmm -Force
-Write-Host "  ph/work/bin/x64/winmm.dll (Ultimate ASI Loader, MIT)" -ForegroundColor Green
+# No Ultimate ASI Loader here. Vendoring the loader is for our own installer
+# and for Lopari; a Nexus upload must not redistribute another author's tool,
+# so Nexus users install the loader themselves (README, Manual Installation).
 
-# The Nexus ZIP is a binary distribution too: it carries the ASI loader and an
-# .asi statically linking MinHook, ImGui, Kiero and inih. MIT and BSD both
-# require the notices to accompany the binary, so they ship at the ZIP root.
+# The Nexus ZIP is still a binary distribution: the .asi statically links
+# MinHook, ImGui, Kiero, inih and cameraunlock-core. MIT and BSD both require
+# the notices to accompany the binary, so they ship at the ZIP root.
 foreach ($doc in @("LICENSE", "THIRD-PARTY-NOTICES.md", "README.md")) {
     $docPath = Join-Path $projectDir $doc
     if (-not (Test-Path $docPath)) {
@@ -217,6 +215,23 @@ foreach ($zipPath in @($ghZipPath, $nexusZipPath)) {
         if ($entries -notcontains $required) {
             throw "$(Split-Path -Leaf $zipPath) ships binaries without $required at its root - that is a licence violation, not a packaging nit."
         }
+    }
+}
+
+# The Nexus ZIP must carry our own payload only. Redistributing Ultimate ASI
+# Loader is fine in our installer and in Lopari, where we control the flow, but
+# a Nexus upload must not bundle another author's tool - it goes in the
+# requirements list instead.
+$nexusZip = [System.IO.Compression.ZipFile]::OpenRead($nexusZipPath)
+try {
+    $nexusEntries = $nexusZip.Entries.FullName
+} finally {
+    $nexusZip.Dispose()
+}
+foreach ($forbidden in @("winmm.dll", "dinput8.dll", "version.dll")) {
+    $hit = $nexusEntries | Where-Object { (Split-Path -Leaf $_) -eq $forbidden }
+    if ($hit) {
+        throw "$nexusZipName bundles the ASI loader ($hit). The Nexus ZIP ships our files only; the loader is a stated requirement there."
     }
 }
 Write-Host ""

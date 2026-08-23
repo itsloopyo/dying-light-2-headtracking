@@ -13,7 +13,7 @@ is the README demo clip, covered in its own section at the end of this file.
 
 | Component | Version | Licence | How it ships | Modified by us |
 |-----------|---------|---------|--------------|----------------|
-| Ultimate ASI Loader | v9.7.2 | MIT | Pre-built binary in the release ZIP | No |
+| Ultimate ASI Loader | v9.7.2 | MIT | Pre-built binary, installer ZIP only | No |
 | MinHook | v1.3.4 | BSD-2-Clause | Compiled into `DL2HeadTracking.asi` | Yes, see below |
 | Dear ImGui | 1.92.6 WIP | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
 | Kiero | 1.2.12 | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
@@ -30,9 +30,11 @@ the attribution is not mistaken for a claim of an unmodified copy.
 
 ## Ultimate ASI Loader
 
-Pre-built binary vendored at `vendor/ultimate-asi-loader/dinput8.dll`, shipped
-in the installer ZIP and shipped pre-named as `winmm.dll` in the Nexus ZIP.
-Extracted untouched from the upstream release asset.
+Pre-built binary vendored at `vendor/ultimate-asi-loader/dinput8.dll`, extracted
+untouched from the upstream release asset and shipped in the installer ZIP only.
+The Nexus ZIP does not bundle it: redistributing another author's tool through a
+Nexus upload is not ours to do, so it is a stated requirement there and users
+install it themselves.
 
 - Upstream: https://github.com/ThirteenAG/Ultimate-ASI-Loader
 - Tag: `v9.7.2` (commit `ab722befd52581a34449b603926cfab476e66b05`)

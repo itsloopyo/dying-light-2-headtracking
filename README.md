@@ -14,7 +14,9 @@ Lean into a window frame while your crosshair stays on the zombie you were alrea
 ## Requirements
 
 - Dying Light 2 Stay Human v1.16 or later
-- [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) (auto-installed by install script)
+- [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) - bundled with the
+  installer download and set up by `install.cmd`. The Nexus download does not
+  include it; install it yourself first (see Manual Installation).
 - [OpenTrack](https://github.com/opentrack/opentrack) or a compatible head tracking app (smartphone, webcam, or dedicated hardware)
 
 ## Installation
