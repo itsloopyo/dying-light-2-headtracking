@@ -112,16 +112,17 @@ foreach ($vendorFile in @("dinput8.dll", "LICENSE", "README.md")) {
     }
 }
 
-# Copy documentation
+# Copy documentation. LICENSE and THIRD-PARTY-NOTICES.md carry the MIT/BSD
+# notices for everything linked into the .asi and for the bundled ASI loader,
+# so a missing one is a licence violation, not a cosmetic gap - fail the build.
 $docFiles = @("README.md", "LICENSE", "CHANGELOG.md", "THIRD-PARTY-NOTICES.md")
 foreach ($doc in $docFiles) {
     $docPath = Join-Path $projectDir $doc
-    if (Test-Path $docPath) {
-        Copy-Item $docPath -Destination $ghStagingDir -Force
-        Write-Host "  $doc" -ForegroundColor Green
-    } elseif ($doc -eq "LICENSE") {
-        Write-Host "  WARNING: $doc not found" -ForegroundColor Yellow
+    if (-not (Test-Path $docPath)) {
+        throw "Required document not found: $docPath"
     }
+    Copy-Item $docPath -Destination $ghStagingDir -Force
+    Write-Host "  $doc" -ForegroundColor Green
 }
 
 Copy-SharedBundle -StagingDir $ghStagingDir
@@ -167,7 +168,19 @@ Write-Host "  ph/work/bin/x64/HeadTracking.ini" -ForegroundColor Green
 # loader pre-named as winmm.dll so it lands where DL2 will load it from.
 $nexusWinmm = Join-Path $nexusGameDir "winmm.dll"
 Copy-Item $vendorAsiDll -Destination $nexusWinmm -Force
-Write-Host "  ph/work/bin/x64/winmm.dll (Ultimate ASI Loader v9.7.1, MIT)" -ForegroundColor Green
+Write-Host "  ph/work/bin/x64/winmm.dll (Ultimate ASI Loader, MIT)" -ForegroundColor Green
+
+# The Nexus ZIP is a binary distribution too: it carries the ASI loader and an
+# .asi statically linking MinHook, ImGui, Kiero and inih. MIT and BSD both
+# require the notices to accompany the binary, so they ship at the ZIP root.
+foreach ($doc in @("LICENSE", "THIRD-PARTY-NOTICES.md", "README.md")) {
+    $docPath = Join-Path $projectDir $doc
+    if (-not (Test-Path $docPath)) {
+        throw "Required document not found: $docPath"
+    }
+    Copy-Item $docPath -Destination $nexusStagingDir -Force
+    Write-Host "  $doc" -ForegroundColor Green
+}
 
 $nexusZipName = "DL2HeadTracking-v$version-nexus.zip"
 $nexusZipPath = Join-Path $releaseDir $nexusZipName
@@ -186,6 +199,25 @@ Remove-Item -Recurse -Force $nexusStagingDir
 
 $nexusZipSize = (Get-Item $nexusZipPath).Length / 1KB
 Write-Host ("  $nexusZipPath ({0:N1} KB)" -f $nexusZipSize) -ForegroundColor Green
+
+# --- Licence compliance check on the finished ZIPs ---
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+foreach ($zipPath in @($ghZipPath, $nexusZipPath)) {
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+    try {
+        $entries = $zip.Entries.FullName
+    } finally {
+        $zip.Dispose()
+    }
+    foreach ($required in @("LICENSE", "THIRD-PARTY-NOTICES.md")) {
+        if ($entries -notcontains $required) {
+            throw "$(Split-Path -Leaf $zipPath) ships binaries without $required at its root - that is a licence violation, not a packaging nit."
+        }
+    }
+}
+Write-Host ""
+Write-Host "Licence notices present in both ZIPs" -ForegroundColor Green
 
 # --- Summary ---
 

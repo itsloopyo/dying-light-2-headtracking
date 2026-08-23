@@ -208,7 +208,9 @@ static bool IsOnMainMenu() {
     }
 }
 
-// Pattern from EGameTools: 48 89 5C 24 ?? 57 48 83 EC ?? 49 8B C1 48 8B F9
+// Signature taken from EGameTools' offsets.h (MIT, (c) 2023-2024 EricPlayZ,
+// https://github.com/EricPlayZ/EGameTools). See THIRD-PARTY-NOTICES.md.
+// 48 89 5C 24 ?? 57 48 83 EC ?? 49 8B C1 48 8B F9
 // mov [rsp+??], rbx; push rdi; sub rsp, ??; mov rax, r9; mov rdi, rcx
 static void* FindMoveCameraFunction() {
     HMODULE engineModule = GetModuleHandleA("engine_x64_rwdi.dll");

@@ -94,12 +94,14 @@ if (Test-Path $readme) {
     $warnings += "README.md not found"
 }
 
-# Check LICENSE
-$license = Join-Path $projectDir "LICENSE"
-if (Test-Path $license) {
-    Write-Host "[OK] LICENSE exists" -ForegroundColor Green
-} else {
-    $warnings += "LICENSE not found"
+# Check licence documents. Both ZIPs ship binaries covered by MIT and BSD
+# notice requirements, so a missing one blocks the release.
+foreach ($licenceDoc in @("LICENSE", "THIRD-PARTY-NOTICES.md")) {
+    if (Test-Path (Join-Path $projectDir $licenceDoc)) {
+        Write-Host "[OK] $licenceDoc exists" -ForegroundColor Green
+    } else {
+        $errors += "$licenceDoc not found - required to distribute the binaries"
+    }
 }
 
 Write-Host ""

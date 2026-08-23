@@ -1,8 +1,10 @@
 # Dying Light 2 Head Tracking
 
-![Mod GIF](https://raw.githubusercontent.com/itsloopyo/dying-light-2-headtracking/main/assets/readme-clip.gif)
-
 An **unofficial** 6DOF head tracking mod for Dying Light 2 Stay Human using OpenTrack-compatible trackers.
+
+Lean into a window frame while your crosshair stays on the zombie you were already aiming at. Glance down at a rooftop gap mid-parkour without your jump going with your eyes. Your head drives the camera; the mouse still drives the aim.
+
+Gameplay clips are on the [Discord](https://discord.com/invite/dxyZdyFNT9) rather than in this repository, which carries no Dying Light 2 footage, art or audio.
 
 ## Features
 
@@ -287,12 +289,26 @@ dying-light-2-headtracking/
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
 
+Third-party components bundled or linked into the mod are listed with their full
+licence texts in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
 ## Credits
 
 - [Techland](https://techland.net/) - Dying Light 2
+- [EGameTools by EricPlayZ](https://github.com/EricPlayZ/EGameTools) - the reverse-engineering work this mod's camera signature comes from
 - [OpenTrack](https://github.com/opentrack/opentrack) - Head tracking protocol and software
 - [MinHook](https://github.com/TsudaKageyu/minhook) - API hooking library
 - [Dear ImGui](https://github.com/ocornut/imgui) - Overlay UI
 - [Kiero](https://github.com/Rebzzel/kiero) - DirectX hooking
 - [inih](https://github.com/benhoyt/inih) - INI file parser
 - [Ultimate ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) - ASI plugin loading
+
+## Disclaimer
+
+This is an unofficial, fan-made mod. It is not affiliated with, endorsed by, or
+supported by Techland. Dying Light 2 Stay Human and all related trademarks are
+the property of Techland, used here only to describe what this mod works with.
+
+It requires a legitimately purchased copy of the game. It contains no game code,
+assets or data, ships nothing belonging to Techland, and touches no DRM or
+licence check. It is single-player only and confers no multiplayer advantage.
