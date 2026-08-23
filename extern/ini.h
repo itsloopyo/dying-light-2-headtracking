@@ -2,29 +2,13 @@
 
 SPDX-License-Identifier: BSD-3-Clause
 
-Copyright (c) 2009-2024, Ben Hoyt
+Copyright (C) 2009-2020, Ben Hoyt
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of Ben Hoyt nor the names of its contributors
-      may be used to endorse or promote products derived from this software
-      without specific prior written permission.
+inih is released under the New BSD license (see LICENSE.txt). Go to the project
+home page for more info:
 
-THIS SOFTWARE IS PROVIDED BY BEN HOYT ''AS IS'' AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL BEN HOYT BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+https://github.com/benhoyt/inih
+
 */
 
 #ifndef INI_H
@@ -40,6 +24,27 @@ extern "C" {
 /* Nonzero if ini_handler callback should accept lineno parameter. */
 #ifndef INI_HANDLER_LINENO
 #define INI_HANDLER_LINENO 0
+#endif
+
+/* Visibility symbols, required for Windows DLLs */
+#ifndef INI_API
+#if defined _WIN32 || defined __CYGWIN__
+#	ifdef INI_SHARED_LIB
+#		ifdef INI_SHARED_LIB_BUILDING
+#			define INI_API __declspec(dllexport)
+#		else
+#			define INI_API __declspec(dllimport)
+#		endif
+#	else
+#		define INI_API
+#	endif
+#else
+#	if defined(__GNUC__) && __GNUC__ >= 4
+#		define INI_API __attribute__ ((visibility ("default")))
+#	else
+#		define INI_API
+#	endif
+#endif
 #endif
 
 /* Typedef for prototype of handler function. */
@@ -68,22 +73,22 @@ typedef char* (*ini_reader)(char* str, int num, void* stream);
    stop on first error), -1 on file open error, or -2 on memory allocation
    error (only when INI_USE_STACK is zero).
 */
-int ini_parse(const char* filename, ini_handler handler, void* user);
+INI_API int ini_parse(const char* filename, ini_handler handler, void* user);
 
 /* Same as ini_parse(), but takes a FILE* instead of filename. This doesn't
    close the file when it's finished -- the caller must do that. */
-int ini_parse_file(FILE* file, ini_handler handler, void* user);
+INI_API int ini_parse_file(FILE* file, ini_handler handler, void* user);
 
 /* Same as ini_parse(), but takes an ini_reader function pointer instead of
    filename. Used for implementing custom or string-based I/O (see also
    ini_parse_string). */
-int ini_parse_stream(ini_reader reader, void* stream, ini_handler handler,
+INI_API int ini_parse_stream(ini_reader reader, void* stream, ini_handler handler,
                      void* user);
 
 /* Same as ini_parse(), but takes a zero-terminated string with the INI data
 instead of a file. Useful for parsing INI data from a network socket or
 already in memory. */
-int ini_parse_string(const char* string, ini_handler handler, void* user);
+INI_API int ini_parse_string(const char* string, ini_handler handler, void* user);
 
 /* Nonzero to allow multi-line value parsing, in the style of Python's
    configparser. If allowed, ini_parse() will call the handler with the same
@@ -99,7 +104,7 @@ int ini_parse_string(const char* string, ini_handler handler, void* user);
 #endif
 
 /* Chars that begin a start-of-line comment. Per Python configparser, allow
-   both ; and #. */
+   both ; and # comments at the start of a line by default. */
 #ifndef INI_START_COMMENT_PREFIXES
 #define INI_START_COMMENT_PREFIXES ";#"
 #endif
@@ -158,12 +163,13 @@ int ini_parse_string(const char* string, ini_handler handler, void* user);
 #endif
 
 /* Nonzero to use custom ini_malloc, ini_free, and ini_realloc memory
-   allocation functions (INI_USE_STACK must be 0). These functions must have
-   the same signatures as malloc/free/realloc and behave in a compatible
+   allocation functions (INI_USE_STACK must also be 0). These functions must
+   have the same signatures as malloc/free/realloc and behave in a similar
    way. ini_realloc is only needed if INI_ALLOW_REALLOC is set. */
 #ifndef INI_CUSTOM_ALLOCATOR
 #define INI_CUSTOM_ALLOCATOR 0
 #endif
+
 
 #ifdef __cplusplus
 }

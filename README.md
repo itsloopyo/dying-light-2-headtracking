@@ -247,8 +247,8 @@ dying-light-2-headtracking/
 │   │   └── crosshair_hook.cpp      # Crosshair management
 │   └── ui/             # User interface
 │       └── notification.cpp        # On-screen notifications
-├── extern/             # External dependencies (auto-downloaded)
-├── libs/               # Vendored libraries (ImGui, Kiero)
+├── extern/             # Vendored third-party sources (MinHook, ImGui, Kiero, inih)
+├── vendor/             # Vendored Ultimate ASI Loader binary + its licence
 ├── scripts/            # Build and deployment scripts
 ├── HeadTracking.ini    # Default configuration
 ├── CMakeLists.txt      # Build configuration

@@ -104,12 +104,15 @@ Write-Host "  plugins/HeadTracking.ini" -ForegroundColor Green
 # has no GitHub dependency at install time.
 $ghVendorDir = Join-Path $ghStagingDir "vendor/ultimate-asi-loader"
 New-Item -ItemType Directory -Path $ghVendorDir -Force | Out-Null
+# The upstream MIT licence has to travel with the loader binary, so a missing
+# LICENSE is a compliance failure - throw rather than skipping the copy.
 foreach ($vendorFile in @("dinput8.dll", "LICENSE", "README.md")) {
     $src = Join-Path $vendorAsiDir $vendorFile
-    if (Test-Path $src) {
-        Copy-Item $src -Destination $ghVendorDir -Force
-        Write-Host "  vendor/ultimate-asi-loader/$vendorFile" -ForegroundColor Green
+    if (-not (Test-Path $src)) {
+        throw "Vendored ASI loader file not found: $src"
     }
+    Copy-Item $src -Destination $ghVendorDir -Force
+    Write-Host "  vendor/ultimate-asi-loader/$vendorFile" -ForegroundColor Green
 }
 
 # Copy documentation. LICENSE and THIRD-PARTY-NOTICES.md carry the MIT/BSD

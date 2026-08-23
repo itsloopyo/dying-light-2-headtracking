@@ -10,15 +10,20 @@ Nothing in this repository is derived from, or redistributes any part of, Dying
 Light 2 Stay Human. The mod resolves the game's exported symbols and byte
 patterns at runtime; no game code, assets or data are copied here or shipped.
 
-| Component | Version | Licence | How it ships |
-|-----------|---------|---------|--------------|
-| Ultimate ASI Loader | v9.7.2 | MIT | Pre-built binary in the release ZIP |
-| MinHook | v1.3.4 | BSD-2-Clause | Compiled into `DL2HeadTracking.asi` |
-| Dear ImGui | 1.92.6 WIP (master snapshot, vendored 2026-03-13) | MIT | Compiled into `DL2HeadTracking.asi` |
-| Kiero | 1.2.12 | MIT | Compiled into `DL2HeadTracking.asi` |
-| inih | r58 | BSD-3-Clause | Compiled into `DL2HeadTracking.asi` |
-| EGameTools | research credit (see below) | MIT | Not shipped; one signature derived from it |
-| cameraunlock-core | submodule | MIT | Compiled into `DL2HeadTracking.asi` |
+| Component | Version | Licence | How it ships | Modified by us |
+|-----------|---------|---------|--------------|----------------|
+| Ultimate ASI Loader | v9.7.2 | MIT | Pre-built binary in the release ZIP | No |
+| MinHook | v1.3.4 | BSD-2-Clause | Compiled into `DL2HeadTracking.asi` | Yes, see below |
+| Dear ImGui | 1.92.6 WIP | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
+| Kiero | 1.2.12 | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
+| inih | r58 | BSD-3-Clause | Compiled into `DL2HeadTracking.asi` | No |
+| cameraunlock-core | submodule | MIT | Compiled into `DL2HeadTracking.asi` | Our own code |
+| EGameTools | research credit | MIT | Not shipped; one signature derived from it | n/a |
+| OpenTrack | n/a | ISC | Not bundled; UDP wire format only | n/a |
+
+Where a component is marked modified, the change is ours, is described in that
+component's section below, and is permitted by its licence. It is recorded so
+the attribution is not mistaken for a claim of an unmodified copy.
 
 ---
 
@@ -68,7 +73,13 @@ Version v1.3.4, from https://github.com/TsudaKageyu/minhook.
 
 MinHook carries two copyright holders: Tsuda Kageyu for MinHook itself, and
 Vyacheslav Patkov for the Hacker Disassembler Engine that `src/hde/` is derived
-from. Both are reproduced below, as they appear in the upstream `LICENSE.txt`.
+from. Both are reproduced below, as they appear in the upstream `LICENSE.txt`,
+which also ships verbatim at `extern/minhook/LICENSE.txt`.
+
+Our modification is confined to `src/hook.c`: `MH_Initialize` takes the process
+heap via `GetProcessHeap()` instead of standing up a private heap with
+`HeapCreate`, so `MH_Uninitialize` skips the matching `HeapDestroy`. Every other
+file under `extern/minhook` is byte-for-byte upstream v1.3.4.
 
 ```
 MinHook - The Minimalistic API Hooking Library for x64/x86
@@ -97,13 +108,61 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
----
-
-Portions of this software are derived from Hacker Disassembler Engine:
-
-Hacker Disassembler Engine 32/64
+================================================================================
+Portions of this software are Copyright (c) 2008-2009, Vyacheslav Patkov.
+================================================================================
+Hacker Disassembler Engine 32 C
 Copyright (c) 2008-2009, Vyacheslav Patkov.
 All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------------------------
+Hacker Disassembler Engine 64 C
+Copyright (c) 2008-2009, Vyacheslav Patkov.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ---
@@ -111,8 +170,12 @@ All rights reserved.
 ## Dear ImGui
 
 Source vendored at `extern/imgui`, compiled into `DL2HeadTracking.asi`.
-Version 1.92.6 WIP, a master snapshot vendored on 2026-03-13, from
-https://github.com/ocornut/imgui. Unmodified.
+Version 1.92.6 WIP, from https://github.com/ocornut/imgui, taken at upstream
+commit `922a11f0847fe1a7907345c31a22e0e77a43829c` (2025-12-23).
+
+Our modification is confined to `imgui_impl_dx12.cpp`, one added line,
+`IM_UNUSED(hr);`, silencing an unused-variable warning. Every other vendored
+ImGui file is byte-for-byte upstream at the commit above.
 
 ```
 The MIT License (MIT)
@@ -148,7 +211,18 @@ the Unlicense. Those headers carry the original notices verbatim.
 ## Kiero
 
 Source vendored at `extern/kiero`, compiled into `DL2HeadTracking.asi`.
-Version 1.2.12, from https://github.com/Rebzzel/kiero. Unmodified.
+Version 1.2.12, from https://github.com/Rebzzel/kiero. The upstream licence file
+also ships verbatim at `extern/kiero/LICENSE`.
+
+Our modifications:
+
+- `kiero.h`: the upstream feature switches `KIERO_INCLUDE_D3D11`,
+  `KIERO_INCLUDE_D3D12` and `KIERO_USE_MINHOOK` are turned on. These exist to be
+  set by the consumer.
+- `kiero.cpp`: includes `<dxgi1_4.h>` rather than `<dxgi.h>`, and `"MinHook.h"`
+  rather than `"minhook/include/MinHook.h"` to match this project's include
+  paths; and the D3D12 method table grows from 150 to 172 entries, filled from
+  an `IDXGISwapChain3` query so `Present1` can be hooked.
 
 ```
 MIT License
@@ -180,14 +254,14 @@ SOFTWARE.
 
 Source vendored at `extern/ini.c` and `extern/ini.h`, compiled into
 `DL2HeadTracking.asi`. Version r58, from https://github.com/benhoyt/inih.
-Unmodified. The upstream licence file is kept at `extern/LICENSE.inih`.
+Unmodified, byte-for-byte upstream. The upstream licence file is kept verbatim
+at `extern/LICENSE.inih`.
 
 ```
-inih -- simple .INI file parser
+The "inih" library is distributed under the New BSD license:
 
-SPDX-License-Identifier: BSD-3-Clause
-
-Copyright (c) 2009-2024, Ben Hoyt
+Copyright (c) 2009, Ben Hoyt
+All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -253,13 +327,61 @@ SOFTWARE.
 ## cameraunlock-core
 
 Git submodule at `cameraunlock-core/`, compiled into `DL2HeadTracking.asi`.
-Licensed under the MIT License, copyright (c) 2026 CameraUnlock. Full text at
-`cameraunlock-core/LICENSE` and, identically, at `LICENSE` in this repository.
+Our own code, MIT licensed, reproduced here so the notices are complete.
+
+- Upstream: https://github.com/itsloopyo/cameraunlock-core
+
+```
+MIT License
+
+Copyright (c) 2026 CameraUnlock
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
 ## OpenTrack
 
-Not bundled and not linked. This mod implements OpenTrack's UDP pose protocol
-so that OpenTrack (https://github.com/opentrack/opentrack, ISC licence) and
-compatible trackers can drive it. No OpenTrack code is used.
+Not bundled and not linked. This mod implements the OpenTrack UDP pose datagram
+layout so that OpenTrack (https://github.com/opentrack/opentrack, ISC licence)
+and compatible trackers can drive it. No OpenTrack code, headers or binaries are
+copied, linked or redistributed, so its licence triggers no notice obligation
+here. It is credited because the wire format is its work.
+
+---
+
+## Dying Light 2 Stay Human
+
+Dying Light 2 Stay Human and all related names, logos, characters and marks are
+trademarks of Techland. They are used here only to identify the game this mod
+applies to, which is nominative use and not a claim of any right in them.
+
+This project is an unofficial, fan-made modification. It is not affiliated with,
+endorsed by, or sponsored by Techland, its publishers, its engine vendor, or any
+other rights holder.
+
+It redistributes no game code, no game assets and no proprietary DLLs, and it
+requires a legitimately purchased copy of the game.
+
+The engine structure offsets, exported symbol names and byte patterns referenced
+in the source were derived by the authors through independent analysis of a
+legitimately owned copy, or credited to EGameTools above. They are factual
+measurements recorded as numbers; no decompiled or disassembled game code is
+stored in this repository.
