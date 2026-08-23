@@ -6,9 +6,10 @@ licence. The copyright notices, permission text and disclaimers are reproduced
 here verbatim, as those licences require, so that they travel with every binary
 we distribute (the GitHub installer ZIP and the Nexus ZIP both carry this file).
 
-Nothing in this repository is derived from, or redistributes any part of, Dying
-Light 2 Stay Human. The mod resolves the game's exported symbols and byte
-patterns at runtime; no game code, assets or data are copied here or shipped.
+No game code, no extracted assets and no data files from Dying Light 2 Stay
+Human are contained here. The mod resolves the game's exported symbols and byte
+patterns at runtime. The one piece of Techland's work this repository does carry
+is the README demo clip, covered in its own section at the end of this file.
 
 | Component | Version | Licence | How it ships | Modified by us |
 |-----------|---------|---------|--------------|----------------|
@@ -377,8 +378,25 @@ This project is an unofficial, fan-made modification. It is not affiliated with,
 endorsed by, or sponsored by Techland, its publishers, its engine vendor, or any
 other rights holder.
 
-It redistributes no game code, no game assets and no proprietary DLLs, and it
-requires a legitimately purchased copy of the game.
+It redistributes no game code, no extracted game assets and no proprietary DLLs,
+and it requires a legitimately purchased copy of the game.
+
+### The README demo clip
+
+`assets/readme-clip.gif` is a short capture of ordinary Dying Light 2 gameplay,
+recorded by us to show what the mod does at the top of the README. The footage,
+the HUD and everything visible in it are the copyrighted audiovisual work of
+Techland and its publishers. The MIT licence covering our own code does not
+extend to it, and no ownership of it is claimed.
+
+It is kept for the same reason every mod page carries a clip: it is the only
+thing that shows a visitor what the mod actually does. It lives in the
+repository only. The packaging script copies `README.md`, `LICENSE`,
+`CHANGELOG.md` and this file and never `assets/`, so the clip ships in neither
+the installer ZIP nor the Nexus ZIP. The README references it by absolute URL,
+so it still renders for anyone reading the copy inside a ZIP.
+
+We will remove it on request from Techland or its publishers.
 
 The engine structure offsets, exported symbol names and byte patterns referenced
 in the source were derived by the authors through independent analysis of a

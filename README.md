@@ -1,10 +1,10 @@
 # Dying Light 2 Head Tracking
 
+![Mod GIF](https://raw.githubusercontent.com/itsloopyo/dying-light-2-headtracking/main/assets/readme-clip.gif)
+
 An **unofficial** 6DOF head tracking mod for Dying Light 2 Stay Human using OpenTrack-compatible trackers.
 
 Lean into a window frame while your crosshair stays on the zombie you were already aiming at. Glance down at a rooftop gap mid-parkour without your jump going with your eyes. Your head drives the camera; the mouse still drives the aim.
-
-Gameplay clips are on the [Discord](https://discord.com/invite/dxyZdyFNT9) rather than in this repository, which carries no Dying Light 2 footage, art or audio.
 
 ## Features
 
@@ -310,5 +310,9 @@ supported by Techland. Dying Light 2 Stay Human and all related trademarks are
 the property of Techland, used here only to describe what this mod works with.
 
 It requires a legitimately purchased copy of the game. It contains no game code,
-assets or data, ships nothing belonging to Techland, and touches no DRM or
-licence check. It is single-player only and confers no multiplayer advantage.
+no extracted assets and no data files, and it touches no DRM or licence check.
+It is single-player only and confers no multiplayer advantage.
+
+The clip at the top is a short capture of ordinary gameplay, recorded to show
+what the mod does. It remains Techland's copyright, ships in neither release
+ZIP, and will be removed on request.
