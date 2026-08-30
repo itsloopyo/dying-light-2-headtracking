@@ -162,6 +162,9 @@ LimitY=0.2
 LimitZ=0.4
 InvertX=false             ; Invert position axes
 InvertY=false
+; InvertZ is for a tracker that sends depth backwards, not for a lean that
+; feels reversed. It is applied before the LimitZ / LimitZBack clamp, so
+; turning it on also swaps the travel budgets to 0.10m forward and 0.40m back.
 InvertZ=false
 Enabled=true              ; Enable/disable positional tracking (set false for 3DOF only)
 
