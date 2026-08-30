@@ -10,17 +10,9 @@
 #include "hooks/crosshair_hook.h"
 #include "ui/notification.h"
 
-namespace DL2HT {
+#include <cameraunlock/time/qpc_clock.h>
 
-// High-resolution timer using QueryPerformanceCounter.
-// GetTickCount64() granularity is too coarse for per-frame delta timing at high refresh rates.
-static uint64_t GetTimeMicros() {
-    static LARGE_INTEGER freq = {};
-    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    return static_cast<uint64_t>(now.QuadPart * 1000000 / freq.QuadPart);
-}
+namespace DL2HT {
 
 Mod& Mod::Instance() {
     static Mod instance;
@@ -324,7 +316,7 @@ void Mod::ToggleYawMode() {
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
     // Guard against multiple calls per frame (shadows, reflections, etc.)
     // A 1000μs threshold separates intra-frame passes from distinct frames.
-    uint64_t now = GetTimeMicros();
+    uint64_t now = cameraunlock::time::QpcNowMicros();
     if (m_lastProcessTime > 0 && (now - m_lastProcessTime) < 1000) {
         yaw = m_cachedYaw;
         pitch = m_cachedPitch;
