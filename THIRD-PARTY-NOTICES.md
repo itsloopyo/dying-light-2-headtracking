@@ -18,7 +18,7 @@ is the README demo clip, covered in its own section at the end of this file.
 | Dear ImGui | 1.92.6 WIP | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
 | Kiero | 1.2.12 | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
 | inih | r58 | BSD-3-Clause | Compiled into `DL2HeadTracking.asi` | No |
-| cameraunlock-core | `b5b4d9888630ca9591a1f7736c2c1785940609a0` | MIT | Compiled into `DL2HeadTracking.asi` | Our own code |
+| cameraunlock-core | `67a82e334bcf32979d17965eab4b0f37a48a6ad0` | MIT | Compiled into `DL2HeadTracking.asi` | Our own code |
 | EGameTools | research credit | MIT | Not shipped; one signature derived from it | n/a |
 | OpenTrack | n/a | ISC | Not bundled; UDP wire format only | n/a |
 
@@ -333,7 +333,7 @@ Git submodule at `cameraunlock-core/`, compiled into `DL2HeadTracking.asi`.
 Our own code, MIT licensed, reproduced here so the notices are complete.
 
 - Upstream: https://github.com/itsloopyo/cameraunlock-core
-- Pinned commit: `b5b4d9888630ca9591a1f7736c2c1785940609a0`
+- Pinned commit: `67a82e334bcf32979d17965eab4b0f37a48a6ad0`
 
 ```
 MIT License
