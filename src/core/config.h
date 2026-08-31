@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cameraunlock/data/position_settings.h>
+#include <cameraunlock/math/smoothing_utils.h>
+
 #include <cstdint>
 
 namespace DL2HT {
@@ -26,10 +29,10 @@ struct Config {
     float positionSensitivityX = 2.0f;
     float positionSensitivityY = 2.0f;
     float positionSensitivityZ = 2.0f;
-    float positionLimitX = 0.30f;
-    float positionLimitY = 0.20f;
-    float positionLimitZ = 0.40f;
-    float positionLimitZBack = 0.10f;  // backward lean limit (asymmetric)
+    float positionLimitX = cameraunlock::PositionSettings{}.limit_x;
+    float positionLimitY = cameraunlock::PositionSettings{}.limit_y;
+    float positionLimitZ = cameraunlock::PositionSettings{}.limit_z;
+    float positionLimitZBack = cameraunlock::PositionSettings{}.limit_z_back;  // backward lean limit (asymmetric)
     bool positionInvertX = false;
     bool positionInvertY = false;
     bool positionInvertZ = false;
@@ -39,8 +42,8 @@ struct Config {
     // address: a tracker on this machine (loopback) uses localSmoothing, a
     // remote network device uses remoteSmoothing. Both cover rotation and
     // position; there is no separate position smoothing setting.
-    float localSmoothing = 0.0f;
-    float remoteSmoothing = 0.15f;
+    float localSmoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
+    float remoteSmoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
 
     // Reticle settings
     bool reticleEnabled = true;

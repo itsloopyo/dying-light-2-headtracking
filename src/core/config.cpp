@@ -77,17 +77,17 @@ void Config::SetDefaults() {
     positionSensitivityX = 2.0f;
     positionSensitivityY = 2.0f;
     positionSensitivityZ = 2.0f;
-    positionLimitX = 0.30f;
-    positionLimitY = 0.20f;
-    positionLimitZ = 0.40f;
-    positionLimitZBack = 0.10f;
+    positionLimitX = cameraunlock::PositionSettings{}.limit_x;
+    positionLimitY = cameraunlock::PositionSettings{}.limit_y;
+    positionLimitZ = cameraunlock::PositionSettings{}.limit_z;
+    positionLimitZBack = cameraunlock::PositionSettings{}.limit_z_back;
     positionInvertX = false;
     positionInvertY = false;
     positionInvertZ = false;
     positionEnabled = true;
 
-    localSmoothing = 0.0f;
-    remoteSmoothing = 0.15f;
+    localSmoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
+    remoteSmoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
 
     reticleEnabled = true;
 
@@ -116,8 +116,10 @@ void Config::Validate() {
     // passes through exactly as the user set it. Each key falls back to its own
     // default, never to a shared one - a bad RemoteSmoothing dropping to the
     // local 0.0 would leave a phone's network jitter entirely unsmoothed.
-    localSmoothing = SanitizeSmoothing("LocalSmoothing", localSmoothing, 0.0f);
-    remoteSmoothing = SanitizeSmoothing("RemoteSmoothing", remoteSmoothing, 0.15f);
+    localSmoothing = SanitizeSmoothing("LocalSmoothing", localSmoothing,
+                                       static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing));
+    remoteSmoothing = SanitizeSmoothing("RemoteSmoothing", remoteSmoothing,
+                                        static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing));
 
     // Validate port range
     if (udpPort < 1024) {
