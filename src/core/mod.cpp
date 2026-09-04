@@ -103,12 +103,17 @@ bool Mod::Initialize() {
         Logger::Instance().Info("UDP: %s", msg.c_str());
     });
 
+    // Start() launches its own supervisor thread that keeps retrying the bind
+    // even when the initial attempt fails (port held by another game's tracker
+    // instance), so a false return here is not fatal - the socket is picked up
+    // once it frees. Aborting init would stop that retry from ever reaching a
+    // live camera hook.
     if (!m_udpReceiver.Start(m_config.udpPort)) {
-        Logger::Instance().Error("UDP receiver failed to start on port %d", m_config.udpPort);
-        ShutdownHooks();
-        return false;
+        Logger::Instance().Warning("UDP receiver could not bind port %d yet - retrying in the background",
+                                   m_config.udpPort);
+    } else {
+        Logger::Instance().Info("UDP receiver started on port %d", m_config.udpPort);
     }
-    Logger::Instance().Info("UDP receiver started on port %d", m_config.udpPort);
 
     // Set initial enabled state based on auto-enable config
     if (m_config.autoEnable) {
