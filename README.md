@@ -337,7 +337,7 @@ licence texts in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 ## Credits
 
 - [Techland](https://techland.net/) - Dying Light 2
-- [EGameTools by EricPlayZ](https://github.com/EricPlayZ/EGameTools) - the reverse-engineering work this mod's camera signature comes from
+- [EGameTools by EricPlayZ](https://github.com/EricPlayZ/EGameTools) - the source of this mod's camera signature
 - [OpenTrack](https://github.com/opentrack/opentrack) - Head tracking protocol and software
 - [MinHook](https://github.com/TsudaKageyu/minhook) - API hooking library
 - [Dear ImGui](https://github.com/ocornut/imgui) - Overlay UI

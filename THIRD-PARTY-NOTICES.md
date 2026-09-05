@@ -18,7 +18,7 @@ is the README demo clip, covered in its own section at the end of this file.
 | Dear ImGui | 1.92.6 WIP | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
 | Kiero | 1.2.12 | MIT | Compiled into `DL2HeadTracking.asi` | Yes, see below |
 | inih | r58 | BSD-3-Clause | Compiled into `DL2HeadTracking.asi` | No |
-| cameraunlock-core | `f441e29427b7422a584ba492dddd7788881804b0` | MIT | Compiled into `DL2HeadTracking.asi` | Our own code |
+| cameraunlock-core | `29b11b62f183183295d435b7292d8c1c0a8e5cff` | MIT | Compiled into `DL2HeadTracking.asi` | Our own code |
 | EGameTools | research credit | MIT | Not shipped; one signature derived from it | n/a |
 | OpenTrack | n/a | ISC | Not bundled; UDP wire format only | n/a |
 
@@ -296,8 +296,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 No EGameTools code is shipped or vendored. The byte signature this mod uses to
 locate `MoveCameraFromForwardUpPos` in `engine_x64_rwdi.dll`
 (`src/hooks/engine_camera_hook.cpp`) is taken from EGameTools' `offsets.h`, so
-this mod stands on EricPlayZ's reverse-engineering work and the notice is
-reproduced here in full.
+that signature is EricPlayZ's work and the notice is reproduced here in full.
 
 - Upstream: https://github.com/EricPlayZ/EGameTools
 
@@ -333,7 +332,7 @@ Git submodule at `cameraunlock-core/`, compiled into `DL2HeadTracking.asi`.
 Our own code, MIT licensed, reproduced here so the notices are complete.
 
 - Upstream: https://github.com/itsloopyo/cameraunlock-core
-- Pinned commit: `f441e29427b7422a584ba492dddd7788881804b0`
+- Pinned commit: `29b11b62f183183295d435b7292d8c1c0a8e5cff`
 
 ```
 MIT License
@@ -404,5 +403,5 @@ We will remove it on request from Techland or its publishers.
 The engine structure offsets, exported symbol names and byte patterns referenced
 in the source were derived by the authors through independent analysis of a
 legitimately owned copy, or credited to EGameTools above. They are factual
-measurements recorded as numbers; no decompiled or disassembled game code is
-stored in this repository.
+measurements recorded as numbers; no game code of any kind is stored in this
+repository.

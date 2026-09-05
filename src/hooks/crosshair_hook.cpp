@@ -121,11 +121,10 @@ static void* FindVtableFromRTTI(void* typeDescriptor) {
     return nullptr;
 }
 
-// Find code that references m_DotEnabled string to determine field offset
-// Currently returns -1 as offset determination requires manual reverse engineering
+// Find code that references m_DotEnabled string to determine field offset.
+// The offset is not pinned yet, so this returns -1 and stock crosshair control
+// stays a no-op.
 static int FindDotEnabledOffset() {
-    // Offset determination not yet implemented
-    // Stock crosshair control will be a no-op until this is reverse engineered
     return -1;
 }
 
@@ -171,8 +170,8 @@ void RemoveCrosshairHook() {
 
 void SetStockCrosshairVisible(bool visible) {
     (void)visible;
-    // Stock crosshair control requires knowing the exact m_DotEnabled offset
-    // in GuiCrosshairData. Until that's reverse engineered, this is a no-op.
+    // Stock crosshair control needs the exact m_DotEnabled offset in
+    // GuiCrosshairData, which is not pinned yet, so this is a no-op.
 }
 
 } // namespace DL2HT
