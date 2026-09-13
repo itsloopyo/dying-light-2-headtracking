@@ -10,6 +10,7 @@ Lean into a window frame while your crosshair stays on the zombie you were alrea
 
 - **Decoupled look + aim**: Look around freely with your head while your aim stays independent
 - **6DOF head tracking**: Full rotation (yaw, pitch, roll) and positional tracking (X, Y, Z) via OpenTrack UDP protocol
+- **Works with any OpenTrack compatible tracker** - free options available for PC, iOS and Android
 
 ## Requirements
 
@@ -20,6 +21,13 @@ Lean into a window frame while your crosshair stays on the zombie you were alrea
 - [OpenTrack](https://github.com/opentrack/opentrack) or a compatible head tracking app (smartphone, webcam, or dedicated hardware)
 
 ## Installation
+
+### Lopari
+
+Download [Lopari](https://lopari.app), choose **Dying Light 2 Stay Human**, and click
+**Play with head tracking**.
+
+### Standalone Installer
 
 1. Download the latest release from the [Releases page](https://github.com/itsloopyo/dying-light-2-headtracking/releases)
 2. Extract the ZIP anywhere
