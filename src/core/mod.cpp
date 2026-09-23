@@ -179,6 +179,9 @@ bool Mod::LoadConfig() {
     if (!m_config.Load(configPath.c_str())) {
         // Create default config file
         m_config.SetDefaults();
+        // A file written before WorldLockedYaw existed has to keep reading as
+        // camera-local, so only a freshly created file starts world-locked.
+        m_config.worldLockedYaw = true;
         m_config.Save(configPath.c_str());
         return false;
     }
