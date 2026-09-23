@@ -138,12 +138,11 @@ Two equivalent binding sets - use whichever your keyboard has:
 
 ### Yaw mode
 
-- **Camera-local** (default): yaw rotates around your head's up axis. When
-  you pitch the view down and yaw, the horizon tilts and the view sweeps a
-  cone. Matches traditional head-tracked FPS feel.
-- **World-locked**: yaw rotates around the world's vertical axis. Pitch
-  down and yaw - the horizon stays level and the view sweeps horizontally.
-  Preferable if you find the default disorienting.
+- **World-locked** (default): yaw rotates around the world's vertical axis.
+  Pitch down and yaw - the horizon stays level and the view sweeps
+  horizontally.
+- **Camera-local**: yaw rotates around your head's up axis. When you pitch
+  the view down and yaw, the horizon tilts and the view sweeps a cone.
 
 Your choice is remembered across sessions (written back to
 `HeadTracking.ini`).
@@ -188,7 +187,7 @@ YawModeKey=0x22           ; Page Down key - toggles camera-local / world-locked 
 ReticleToggleKey=0x2d     ; Insert key (VK code in hex)
 
 [Rotation]
-WorldLockedYaw=false      ; false = camera-local (default), true = world-up yaw
+WorldLockedYaw=true       ; true = world-up yaw (default), false = camera-local
 
 [Reticle]
 Enabled=true              ; Show/hide the head tracking reticle overlay

@@ -31,6 +31,10 @@
 - Removed the `[Position] Smoothing` key and the hidden 0.15 baseline floor.
   The two new keys cover rotation and position, so local users get
   zero-latency tracking by default.
+- World-locked yaw is now the default for new installs (`[Rotation]
+  WorldLockedYaw=true`), matching the other head-tracking mods. An existing
+  `HeadTracking.ini` keeps the mode it already has; Page Down switches it in
+  game.
 
 ### Fixed
 

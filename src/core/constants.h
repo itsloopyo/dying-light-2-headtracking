@@ -23,6 +23,6 @@ inline constexpr int DEFAULT_YAW_MODE_KEY = 0x22;        // VK_NEXT (Page Down) 
 inline constexpr int DEFAULT_RETICLE_TOGGLE_KEY = 0x2D;  // VK_INSERT - Toggle reticle
 
 // Default rotation settings
-inline constexpr bool DEFAULT_WORLD_LOCKED_YAW = false;  // false = camera-local yaw, true = world-up yaw
+inline constexpr bool DEFAULT_WORLD_LOCKED_YAW = true;  // true = world-up yaw, false = camera-local yaw
 
 } // namespace DL2HT

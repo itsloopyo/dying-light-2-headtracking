@@ -282,7 +282,7 @@ bool Config::Save(const char* path) const {
     file << "ReticleToggleKey=0x" << std::hex << reticleToggleKey << "  ; Insert - Toggle reticle\n\n";
 
     file << "[Rotation]\n";
-    file << "; Yaw rotation frame. false = camera-local (default); true = world-up (horizon-locked).\n";
+    file << "; Yaw rotation frame. true = world-up (horizon-locked, default); false = camera-local.\n";
     file << "WorldLockedYaw=" << (worldLockedYaw ? "true" : "false") << "\n\n";
 
     file << "[Reticle]\n";
