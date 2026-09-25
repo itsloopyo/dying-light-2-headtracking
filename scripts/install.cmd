@@ -13,6 +13,10 @@ set "MOD_VERSION=1.4.0"
 set "STATE_FILE=.headtracking-state.json"
 set "FRAMEWORK_TYPE=ASILoader"
 set "ASI_LOADER_NAME=winmm.dll"
+:: Files copied only when they are not already there, so an upgrade keeps
+:: whatever the user tuned. Listing an .ini in MOD_DLLS instead puts it through
+:: the unconditional copy and resets every key on every update.
+set "MOD_SEED_FILES="
 set "MOD_CONTROLS=Controls:&echo   End  - Toggle head tracking on/off"
 :: ASI_LOADER_NAME is the filename the ASI DLL is renamed to. DL2 and most
 :: modern games use winmm.dll; older ones use dinput8.dll or xinput1_3.dll.
