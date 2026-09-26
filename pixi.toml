@@ -51,8 +51,12 @@ validate-release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/val
 # Manual; commit the result. CI does not run this.
 update-deps = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1" }
 
-# Package release ZIP
-package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build-release"] }
+# The config differential test, which holds the frozen HeadTracking.ini reader to v1.4.0's, and
+# the check that the frozen files keep their recorded hashes. Needs no game install.
+test = { cmd = "ctest --test-dir build -C Release --output-on-failure", depends-on = ["build-release"] }
+
+# Package release ZIP. Depends on test, so no ZIP is built from a tree whose config tests fail.
+package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build-release", "test"] }
 
 # Automated release workflow
 release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1" }
@@ -76,4 +80,6 @@ test-udp = { cmd = "python scripts/test-udp-receiver.py --test && python scripts
 test-udp-continuous = { cmd = "python scripts/test-udp-receiver.py --continuous --rate 120" }
 
 [dependencies]
-# No pixi dependencies - using system CMake and Visual Studio
+# CMake and Visual Studio come from the system. Packaging runs core's config descriptor check
+# (Copy-SharedBundle) with node, pinned to the release core's own lock resolves.
+nodejs = "==26.5.0"

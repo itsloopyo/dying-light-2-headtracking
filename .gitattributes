@@ -97,3 +97,4 @@ docker-compose*.yml text eol=lf
 *.jar binary
 *.war binary
 *.ear binary
+tests/config_differential/inputs/** -text

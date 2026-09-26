@@ -11,7 +11,8 @@ if(WIN32)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-# Include cameraunlock-core shared library
+# Include cameraunlock-core shared library. Its own tests run in core's CI, not in this build.
+set(CAMERAUNLOCK_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(cameraunlock-core/cpp ${CMAKE_BINARY_DIR}/cameraunlock-core)
 
 # MinHook sources
@@ -50,6 +51,7 @@ set(MOD_SOURCES
     src/core/mod.cpp
     src/core/logger.cpp
     src/core/config.cpp
+    src/legacy_config/legacy_config.cpp
     src/core/hotkey_utils.cpp
     src/core/path_utils.cpp
     src/hooks/hook_manager.cpp
@@ -103,4 +105,58 @@ if(WIN32)
         dxgi
         dxguid
     )
+endif()
+
+# The config tests. Separate executables linking none of the hook machinery, so `pixi run test`
+# runs anywhere the mod builds, with no game installed.
+option(DL2HT_BUILD_TESTS "Build the config tests" ON)
+if(DL2HT_BUILD_TESTS)
+    enable_testing()
+
+    # The config differential test. The oracle is v1.4.0's reader, the newest published build,
+    # copied byte for byte into tests/config_differential/oracle with the logger, path helpers
+    # and inih it compiled; renaming its namespace and inih's entry points lets it link beside
+    # this build's. oracle_adapter.cpp copies its Config out for the test.
+    set(DL2_ORACLE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/oracle)
+    add_library(dl2_config_oracle STATIC
+        ${DL2_ORACLE_DIR}/src/core/config.cpp
+        ${DL2_ORACLE_DIR}/src/core/logger.cpp
+        ${DL2_ORACLE_DIR}/src/core/path_utils.cpp
+        ${DL2_ORACLE_DIR}/extern/ini.c
+        tests/config_differential/oracle_adapter.cpp
+    )
+    target_include_directories(dl2_config_oracle PRIVATE
+        ${DL2_ORACLE_DIR}/src
+        ${DL2_ORACLE_DIR}/extern
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern/minhook/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential)
+    target_compile_definitions(dl2_config_oracle PRIVATE
+        DL2HT=dl2_oracle
+        ini_parse=dl2_oracle_ini_parse
+        ini_parse_file=dl2_oracle_ini_parse_file
+        ini_parse_stream=dl2_oracle_ini_parse_stream
+        ini_parse_string=dl2_oracle_ini_parse_string)
+
+    add_executable(dl2ht_config_differential
+        tests/config_differential/differential_tests.cpp
+        src/core/config.cpp
+        src/legacy_config/legacy_config.cpp
+        src/core/logger.cpp
+        src/core/path_utils.cpp
+        extern/ini.c
+    )
+    target_include_directories(dl2ht_config_differential PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern/minhook/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential)
+    target_compile_definitions(dl2ht_config_differential PRIVATE
+        DL2_DIFFERENTIAL_INPUTS="${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/inputs")
+    target_link_libraries(dl2ht_config_differential PRIVATE cameraunlock dl2_config_oracle)
+    add_test(NAME config_differential COMMAND dl2ht_config_differential)
+
+    # The frozen reader, the sources it compiles, the oracle and the inputs against the hashes
+    # tests/config_differential/frozen.tsv records.
+    add_test(NAME config_frozen COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+        -File ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/check-frozen.ps1)
 endif()

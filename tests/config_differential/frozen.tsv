@@ -1,0 +1,44 @@
+# The config differential test's record: the published build, the frozen legacy reader, the
+# sources it compiles, and the oracle and inputs the test measures it against.
+# check-frozen.ps1 fails when a working-tree path below stops matching its hash. Rows naming
+# <commit>:<path> are provenance, the blobs the oracle and the import were taken from, and are
+# not checked.
+#
+# Published builds: v1.0.0 to v1.4.0 (13 tags, every one a GitHub release); there is no dev
+# pre-release and no predecessor repo. v1.4.0 at 3421cad (cameraunlock-core 3465659) is the
+# newest and the oracle. The frozen reader is src/core/config.cpp's reading half as of 852d20e.
+#
+# path	sha256	what
+src/legacy_config/legacy_config.h	e43a5472e81fb92e129d60fda2f856bd497726d880efeaba2ece9fa0ddd2c358	the frozen reader
+src/legacy_config/legacy_config.cpp	df635d9d53a87474be1f43001e4fb34db3d64050a5da8a1ee769c3002aa09dc4	the frozen reader
+extern/ini.c	217fa78f0380669c91a565f3e414d0a8be0f7a7fdfd1e3839f213e86aa574a95	inih r58, compiled by the import; 852d20e's bytes, changed since v1.4.0 by b993f62
+extern/ini.h	b5342061a317f8cedd1103c10e241f74c16b5944d62deb9ab9e3e8a3f1ca4e5d	inih r58, compiled by the import; 852d20e's bytes, changed since v1.4.0 by b993f62
+tests/config_differential/oracle/src/pch.h	320e1410a170f8b1f70518058691f377d406746e4569d990032828b49cf377bc	the oracle; v1.4.0:src/pch.h byte for byte
+tests/config_differential/oracle/src/core/config.h	c3662b2d493baba1638be8192f08430f8b97ad73fb4e100b4e4103e2451e8361	the oracle; v1.4.0:src/core/config.h byte for byte
+tests/config_differential/oracle/src/core/config.cpp	a136f21560eecd5221702af75f672f9d88b4c5798f0de2d461cba68f53f9d8d4	the oracle; v1.4.0:src/core/config.cpp byte for byte
+tests/config_differential/oracle/src/core/constants.h	5ac72a8dc69e0bfcc491c2b9c74026bd5515ade2968cedc076f9f0ce0420cfb6	the oracle; v1.4.0:src/core/constants.h byte for byte
+tests/config_differential/oracle/src/core/logger.h	a3cfabfb85658db3fa3f5899ef2ad01cdf210dcc41cab7946f4a28ad4e68b8b8	the oracle; v1.4.0:src/core/logger.h byte for byte
+tests/config_differential/oracle/src/core/logger.cpp	8e847db71e5764275ca56cbf47a172773c9f0521c06d0b99446c5b9ba14d4c8b	the oracle; v1.4.0:src/core/logger.cpp byte for byte
+tests/config_differential/oracle/src/core/path_utils.h	490d3824671d015e258b97eeb938d6d6f13d554b43a68ebd16cc17b57edd0a8a	the oracle; v1.4.0:src/core/path_utils.h byte for byte
+tests/config_differential/oracle/src/core/path_utils.cpp	b5fbd6bc3bb997ad6cf26627dd400f211b7cbb2fed5d04fd085ea1ad44e56567	the oracle; v1.4.0:src/core/path_utils.cpp byte for byte
+tests/config_differential/oracle/extern/ini.c	58c1489b0287a5a89784ef0ac85095b46a3fc4cd71b050f3c01600e0edb6a3dd	the oracle; v1.4.0:extern/ini.c byte for byte
+tests/config_differential/oracle/extern/ini.h	478e555a70725549b2066dbac49b740443069506694d3a40f7a202b8c44b09ed	the oracle; v1.4.0:extern/ini.h byte for byte
+tests/config_differential/inputs/shipped-v1.0.0.ini	f509829cd4f1dc9948d14d5201fc9e9d3d9cbc0244fd790aa11a3b9498696207	the v1.0.0 ZIP's plugins/HeadTracking.ini; f9b3652:HeadTracking.ini
+tests/config_differential/inputs/committed-7c996cf.ini	e353d1ef72914c41e63d1b20277ed05a00079ea8cb53c9bdc944d1658f5feae6	7c996cf:HeadTracking.ini, committed between v1.0.0 and v1.0.1 and never released
+tests/config_differential/inputs/shipped-v1.0.1.ini	62176c417acee21a5162e05872f47701ea1b90bc6dcf1a4596775a4ae3dcdcc7	the v1.0.1 installer and Nexus ZIPs' HeadTracking.ini; 7542822:HeadTracking.ini
+tests/config_differential/inputs/shipped-v1.0.2.ini	3d27d8a9044951c603be9251aad81581220652ca3c411dbf03d172b71bf25e24	the v1.0.2, v1.0.3 and v1.0.4 installer and Nexus ZIPs' HeadTracking.ini; d66977f:HeadTracking.ini
+tests/config_differential/inputs/shipped-v1.0.5.ini	b3d6103a342d2d3596d199d9d81b5113a449eabcccf7b98f4f7175665ee75d27	the v1.0.5 installer and Nexus ZIPs' HeadTracking.ini; a257307:HeadTracking.ini
+tests/config_differential/inputs/shipped-v1.1.0.ini	ddc6b0ad7e7d88dec70ab8a60d54ed925097be6ab87ceb5fe310ae542d4b106e	the v1.1.0 to v1.3.0 installer and Nexus ZIPs' HeadTracking.ini, and the v1.2.2 to v1.3.0 launcher seed; 78e3bed:HeadTracking.ini
+tests/config_differential/inputs/shipped-v1.4.0.ini	f910dcb3da46a6b167d390a59d1bfffffee105813d621cd527eaf42bbf524b5c	the v1.4.0 installer and Nexus ZIPs' HeadTracking.ini and its launcher seed; 37134bf:HeadTracking.ini
+tests/config_differential/inputs/first-run-v1.0.0.ini	d3e8978d926cd22a2695ecf5daa6a9ac1208a668e4c7826ddfa176ea48c7cb06	the first-run output of v1.0.0's config code, extracted once
+tests/config_differential/inputs/first-run-v1.0.1.ini	c0851547e45e694c59a572b8d6635a35ffff0d40a2ce222adcf9891548cb9d64	the first-run output of v1.0.1's config code, extracted once
+tests/config_differential/inputs/first-run-v1.0.2.ini	17446e491b185b7d7b3e670258871344a4882569d96a689dd9d2ce2e1698a1da	the first-run output of v1.0.2's config code, extracted once
+tests/config_differential/inputs/first-run-v1.0.5.ini	b6bd3a93c0b611447c0fe71e8649c51972e410a25784dd62f5827f831f85dbb5	the first-run output of v1.0.5's config code, extracted once
+tests/config_differential/inputs/first-run-v1.1.0.ini	7d24afdf4fb07f02e3ca49901375da63737cb84edcbef42d158e98b0e2909486	the first-run output of v1.1.0's config code, extracted once
+tests/config_differential/inputs/first-run-v1.2.0.ini	a749c9709811d0b97a32a39ea4b0b1162fef18d0f5c97cabdc64aa7381fde171	the first-run output of v1.2.0's config code, extracted once
+tests/config_differential/inputs/first-run-v1.4.0.ini	78d1694b502dbef0800726f33899330ce323a5e0f8840f5c699022cf78f54359	the first-run output of v1.4.0's config code, extracted once
+v1.4.0:src/core/mod.cpp	349c808996887c09fd4d76bb631c42ab6f4b403f09b865ea8225e3d941967d38	v1.4.0's startup code, which oracle_adapter.cpp and FromOracle model
+v1.4.0:src/hooks/input_hook.cpp	3e50f6d9eaa2bb8e96e2a0136bda5fb88772e66117c070eedc4d39fa793d5cb8	v1.4.0's hotkey registration, which PublishedHotkeys models; the same bytes at 852d20e
+852d20e:src/core/config.cpp	62148e75dbd3413a8b38892f21c44b1aaa524a37e9bbc7954595d7e45bdd9ab6	the reader the import was frozen from
+852d20e:src/core/config.h	45f35914d470bfa26f032f143c60ac746a88b4f3160b2ef8ba15e93bd505481d	the reader the import was frozen from
+852d20e:src/core/mod.cpp	3ac6c4c045d3046f3c37a0c647a04d4cb7d2418a19b644b37f16d561a7a8c1d3	the startup code FromImport models

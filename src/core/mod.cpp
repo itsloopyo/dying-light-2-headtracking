@@ -9,6 +9,7 @@
 #include "hooks/dx_hook.h"
 #include "hooks/crosshair_hook.h"
 #include "ui/notification.h"
+#include "legacy_config/legacy_config.h"
 
 #include <cameraunlock/time/qpc_clock.h>
 
@@ -175,8 +176,8 @@ bool Mod::LoadConfig() {
     // Get path to config file (same directory as DLL)
     std::string configPath = GetModulePath("HeadTracking.ini");
 
-    // Try to load config
-    if (!m_config.Load(configPath.c_str())) {
+    legacy::Config read;
+    if (legacy::Read(configPath.c_str(), read) != legacy::ReadStatus::Read) {
         // Create default config file
         m_config.SetDefaults();
         // A file written before WorldLockedYaw existed has to keep reading as
@@ -186,6 +187,31 @@ bool Mod::LoadConfig() {
         return false;
     }
 
+    m_config.udpPort = read.udpPort;
+    m_config.yawMultiplier = read.yawMultiplier;
+    m_config.pitchMultiplier = read.pitchMultiplier;
+    m_config.rollMultiplier = read.rollMultiplier;
+    m_config.toggleKey = read.toggleKey;
+    m_config.trackingModeKey = read.trackingModeKey;
+    m_config.yawModeKey = read.yawModeKey;
+    m_config.reticleToggleKey = read.reticleToggleKey;
+    m_config.worldLockedYaw = read.worldLockedYaw;
+    m_config.positionSensitivityX = read.positionSensitivityX;
+    m_config.positionSensitivityY = read.positionSensitivityY;
+    m_config.positionSensitivityZ = read.positionSensitivityZ;
+    m_config.positionLimitX = read.positionLimitX;
+    m_config.positionLimitY = read.positionLimitY;
+    m_config.positionLimitZ = read.positionLimitZ;
+    m_config.positionLimitZBack = read.positionLimitZBack;
+    m_config.positionInvertX = read.positionInvertX;
+    m_config.positionInvertY = read.positionInvertY;
+    m_config.positionInvertZ = read.positionInvertZ;
+    m_config.positionEnabled = read.positionEnabled;
+    m_config.localSmoothing = read.localSmoothing;
+    m_config.remoteSmoothing = read.remoteSmoothing;
+    m_config.reticleEnabled = read.reticleEnabled;
+    m_config.autoEnable = read.autoEnable;
+    m_config.showNotifications = read.showNotifications;
     return true;
 }
 
