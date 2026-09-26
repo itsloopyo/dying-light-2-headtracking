@@ -7,7 +7,7 @@
 :: --- CONFIG BLOCK ---
 set "GAME_ID=dying-light-2"
 set "MOD_DISPLAY_NAME=DL2 Head Tracking"
-set "MOD_DLLS=DL2HeadTracking.asi HeadTracking.ini"
+set "MOD_DLLS=DL2HeadTracking.asi"
 set "MOD_INTERNAL_NAME=DL2HeadTracking"
 set "MOD_VERSION=1.4.0"
 set "STATE_FILE=.headtracking-state.json"

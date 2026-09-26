@@ -28,9 +28,6 @@ deploy = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 De
 # Deploy release build to game directory
 deploy-release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy-release.ps1", depends-on = ["build-release"] }
 
-# Deploy only the config file (for quick settings changes without rebuilding)
-deploy-config = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/deploy-config.ps1" }
-
 # Detect game installation path
 detect-game = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/detect-game.ps1" }
 
@@ -51,15 +48,29 @@ validate-release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/val
 # Manual; commit the result. CI does not run this.
 update-deps = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1" }
 
-# The config differential test, which holds the frozen HeadTracking.ini reader to v1.4.0's, and
-# the check that the frozen files keep their recorded hashes. Needs no game install.
+# The config tests, the config differential test, which holds the frozen HeadTracking.ini reader
+# to v1.4.0's and the migration into CameraUnlock.ini to the frozen reader, core's canonical
+# config lint over every file that test migrated, and the check that the frozen files keep their
+# recorded hashes. Needs no game install.
 test = { cmd = "ctest --test-dir build -C Release --output-on-failure", depends-on = ["build-release"] }
+
+# Rewrites HeadTracking.ini, the committed config and the table's fresh render (the
+# CameraUnlock.ini a first launch creates), after a change to a row, a comment or a default, then
+# the config descriptor's per_game in launcher-manifest.json from it. The config tests fail until
+# it has run.
+render-config = { cmd = "build/Release/dl2ht_config_tests.exe --render-config HeadTracking.ini && node cameraunlock-core/scripts/encode-seed.mjs", depends-on = ["build-release"] }
 
 # Package release ZIP. Depends on test, so no ZIP is built from a tree whose config tests fail.
 package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build-release", "test"] }
 
 # Automated release workflow
 release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1" }
+
+# Core's own validators, run by hand. validate-manifest reads the newest release/*-installer.zip,
+# so run it after package; until a release bumps the version to the config descriptor's
+# canonical_since it reports that the ZIP names an earlier version.
+validate-manifest = { cmd = "node cameraunlock-core/scripts/validate-manifest.mjs" }
+validate-notices = { cmd = "node cameraunlock-core/scripts/validate-notices.mjs" }
 
 # Preview changelog for next release
 show-changelog = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/show-changelog.ps1" }
@@ -80,6 +91,7 @@ test-udp = { cmd = "python scripts/test-udp-receiver.py --test && python scripts
 test-udp-continuous = { cmd = "python scripts/test-udp-receiver.py --continuous --rate 120" }
 
 [dependencies]
-# CMake and Visual Studio come from the system. Packaging runs core's config descriptor check
-# (Copy-SharedBundle) with node, pinned to the release core's own lock resolves.
+# CMake and Visual Studio come from the system. Node runs the canonical config lint under `test`,
+# render-config's encode-seed step and packaging's config descriptor check (Copy-SharedBundle),
+# pinned to the release core's own lock resolves.
 nodejs = "==26.5.0"

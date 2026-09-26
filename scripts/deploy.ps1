@@ -23,14 +23,12 @@ $projectRoot = Split-Path -Parent $scriptDir
 Import-Module (Join-Path $projectRoot "cameraunlock-core\powershell\DevDeploy.psm1") -Force
 Import-Module (Join-Path $projectRoot "cameraunlock-core\powershell\ModDeployment.psm1") -Force
 $buildOutput = Join-Path $projectRoot "bin\$Configuration"
-$configFile = Join-Path $projectRoot 'HeadTracking.ini'
 $vendorLoader = Join-Path $projectRoot 'vendor\ultimate-asi-loader\dinput8.dll'
 $result = Invoke-DevDeployASILoader `
     -GameId 'dying-light-2' `
     -GameDisplayName 'Dying Light 2' `
     -BuildOutputPath $buildOutput `
     -ModDllName 'DL2HeadTracking.asi' `
-    -ConfigFile $configFile `
     -VendorLoaderDll $vendorLoader `
     -AsiLoaderName 'winmm.dll' `
     -ExtraDlls @() `
@@ -43,7 +41,6 @@ Write-DeploymentSuccess `
         "End       - Toggle head tracking on/off",
         "Page Up   - Cycle tracking mode (rotation+position / rotation-only / position-only)",
         "Page Down - Toggle yaw mode (world / local)",
-        "Insert    - Toggle reticle",
         "",
-        "No nav cluster? Chords: Ctrl+Shift+ Y=Toggle G=Mode H=Yaw U=Reticle"
+        "No nav cluster? Chords: Ctrl+Shift+ Y=Toggle G=Mode H=Yaw"
     )

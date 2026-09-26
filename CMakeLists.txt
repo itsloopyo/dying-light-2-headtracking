@@ -52,7 +52,6 @@ set(MOD_SOURCES
     src/core/logger.cpp
     src/core/config.cpp
     src/legacy_config/legacy_config.cpp
-    src/core/hotkey_utils.cpp
     src/core/path_utils.cpp
     src/hooks/hook_manager.cpp
     src/hooks/engine_camera_hook.cpp
@@ -113,6 +112,27 @@ option(DL2HT_BUILD_TESTS "Build the config tests" ON)
 if(DL2HT_BUILD_TESTS)
     enable_testing()
 
+    # The committed HeadTracking.ini against the table's fresh render, the toggles' saves into
+    # CameraUnlock.ini, and the rows that follow Defaults.ini. `--render-config <path>` makes it
+    # write the committed file instead (pixi run render-config).
+    add_executable(dl2ht_config_tests
+        tests/config_tests.cpp
+        src/core/config.cpp
+        src/legacy_config/legacy_config.cpp
+        src/core/logger.cpp
+        src/core/path_utils.cpp
+        extern/ini.c
+    )
+    target_include_directories(dl2ht_config_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern/minhook/include)
+    target_compile_definitions(dl2ht_config_tests PRIVATE
+        DL2_COMMITTED_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/HeadTracking.ini"
+        DL2_DIFFERENTIAL_INPUTS="${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/inputs")
+    target_link_libraries(dl2ht_config_tests PRIVATE cameraunlock)
+    add_test(NAME config_tests COMMAND dl2ht_config_tests)
+
     # The config differential test. The oracle is v1.4.0's reader, the newest published build,
     # copied byte for byte into tests/config_differential/oracle with the logger, path helpers
     # and inih it compiled; renaming its namespace and inih's entry points lets it link beside
@@ -151,9 +171,17 @@ if(DL2HT_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/extern/minhook/include
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential)
     target_compile_definitions(dl2ht_config_differential PRIVATE
-        DL2_DIFFERENTIAL_INPUTS="${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/inputs")
+        DL2_DIFFERENTIAL_INPUTS="${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/inputs"
+        DL2_COMMITTED_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/HeadTracking.ini")
     target_link_libraries(dl2ht_config_differential PRIVATE cameraunlock dl2_config_oracle)
     add_test(NAME config_differential COMMAND dl2ht_config_differential)
+
+    # Core's canonical config lint over the committed file and every file the differential test
+    # migrated, which it writes beside itself under migrated\.
+    add_test(NAME config_lint COMMAND node
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/lint-migrated.mjs
+        $<TARGET_FILE_DIR:dl2ht_config_differential>/migrated)
+    set_tests_properties(config_lint PROPERTIES DEPENDS config_differential)
 
     # The frozen reader, the sources it compiles, the oracle and the inputs against the hashes
     # tests/config_differential/frozen.tsv records.

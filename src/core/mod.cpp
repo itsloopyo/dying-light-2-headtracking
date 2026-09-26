@@ -2,14 +2,12 @@
 #include "mod.h"
 #include "logger.h"
 #include "path_utils.h"
-#include "hotkey_utils.h"
 #include "hooks/hook_manager.h"
 #include "hooks/engine_camera_hook.h"
 #include "hooks/input_hook.h"
 #include "hooks/dx_hook.h"
 #include "hooks/crosshair_hook.h"
 #include "ui/notification.h"
-#include "legacy_config/legacy_config.h"
 
 #include <cameraunlock/time/qpc_clock.h>
 
@@ -28,52 +26,16 @@ bool Mod::Initialize() {
 
     Logger::Instance().Info("DL2 Head Tracking v%s initializing...", DL2HT_VERSION);
 
-    // Load config
-    if (!LoadConfig()) {
-        Logger::Instance().Warning("Using default configuration");
-    }
-
-    // Configure the tracking session's rotation pipeline
-    cameraunlock::SensitivitySettings sensitivity;
-    sensitivity.yaw = m_config.yawMultiplier;
-    sensitivity.pitch = m_config.pitchMultiplier;
-    sensitivity.roll = m_config.rollMultiplier;
-    m_session.GetProcessor().SetSensitivity(sensitivity);
-
-    Logger::Instance().Info("TrackingProcessor initialized with sensitivity: yaw=%.2f pitch=%.2f roll=%.2f",
-                            sensitivity.yaw, sensitivity.pitch, sensitivity.roll);
-
-    // Initialize reticle state
-    m_reticleEnabled = m_config.reticleEnabled;
+    LoadConfig();
 
     // Initialize yaw rotation frame from config
-    m_worldLockedYaw.store(m_config.worldLockedYaw);
+    m_worldLockedYaw.store(m_config.world_space_yaw);
 
-    // Configure the session's position pipeline (6DOF). The config flag seeds
-    // the tracking mode: positionEnabled=false starts in rotation-only mode.
-    if (!m_config.positionEnabled) {
-        m_session.SetMode(cameraunlock::TrackingMode::RotationOnly);
-    }
-    // Field-by-field rather than the positional constructor: PositionSettings
-    // now carries two smoothing floats between the limits and the invert flags,
-    // and a positional call that drops them binds the bools to the smoothing
-    // parameters without a compile error.
-    cameraunlock::PositionSettings posSettings;
-    posSettings.sensitivity_x = m_config.positionSensitivityX;
-    posSettings.sensitivity_y = m_config.positionSensitivityY;
-    posSettings.sensitivity_z = m_config.positionSensitivityZ;
-    posSettings.limit_x = m_config.positionLimitX;
-    // The clamp is [-limit_y_down, +limit_y] and limit_y_down carries its own
-    // default, so mirror the one configured vertical limit the way
-    // PositionSettings::Symmetric does. Left unset, raising LimitY widened the
-    // upward budget only and downward travel stayed pinned at 0.20m.
-    posSettings.limit_y = m_config.positionLimitY;
-    posSettings.limit_y_down = m_config.positionLimitY;
-    posSettings.limit_z = m_config.positionLimitZ;
-    posSettings.limit_z_back = m_config.positionLimitZBack;
-    posSettings.invert_x = m_config.positionInvertX;
-    posSettings.invert_y = m_config.positionInvertY;
-    posSettings.invert_z = m_config.positionInvertZ;
+    m_session.SetMode(StartupTrackingMode(m_config));
+    cameraunlock::PositionSettings posSettings = m_config.position;
+    posSettings.sensitivity_x = kPositionSensitivity;
+    posSettings.sensitivity_y = kPositionSensitivity;
+    posSettings.sensitivity_z = kPositionSensitivity;
     m_session.GetPositionProcessor().SetSettings(posSettings);
 
     // After SetSettings, which would otherwise overwrite the smoothing fields.
@@ -83,12 +45,12 @@ bool Mod::Initialize() {
     // that selection silently pins to local, so assert the trait.
     static_assert(decltype(m_session)::kHasRemoteConnection,
                   "receiver must expose IsRemoteConnection()");
-    m_session.SetLocalSmoothing(m_config.localSmoothing);
-    m_session.SetRemoteSmoothing(m_config.remoteSmoothing);
-    Logger::Instance().Info("Position processor initialized (%s, sens=%.1f/%.1f/%.1f, limits=%.2f/%.2f/%.2f)",
+    m_session.SetLocalSmoothing(m_config.local_smoothing);
+    m_session.SetRemoteSmoothing(m_config.remote_smoothing);
+    Logger::Instance().Info("Position processor initialized (%s, limits x=%.2f up=%.2f down=%.2f fwd=%.2f back=%.2f)",
                             m_session.IsPositionActive() ? "6DOF" : "3DOF only",
-                            posSettings.sensitivity_x, posSettings.sensitivity_y, posSettings.sensitivity_z,
-                            posSettings.limit_x, posSettings.limit_y, posSettings.limit_z);
+                            posSettings.limit_x, posSettings.limit_y, posSettings.limit_y_down,
+                            posSettings.limit_z, posSettings.limit_z_back);
 
     // Initialize hooks - we continue even if camera hook fails
     // This prevents the mod from crashing the game on pattern mismatch
@@ -109,24 +71,23 @@ bool Mod::Initialize() {
     // instance), so a false return here is not fatal - the socket is picked up
     // once it frees. Aborting init would stop that retry from ever reaching a
     // live camera hook.
-    if (!m_udpReceiver.Start(m_config.udpPort)) {
+    if (!m_udpReceiver.Start(static_cast<uint16_t>(m_config.udp_port))) {
         Logger::Instance().Warning("UDP receiver could not bind port %d yet - retrying in the background",
-                                   m_config.udpPort);
+                                   m_config.udp_port);
     } else {
-        Logger::Instance().Info("UDP receiver started on port %d", m_config.udpPort);
+        Logger::Instance().Info("UDP receiver started on port %d", m_config.udp_port);
     }
 
-    // Set initial enabled state based on auto-enable config
-    if (m_config.autoEnable) {
+    if (m_config.enable_on_startup) {
         m_enabled.store(true);
         SetCameraHookEnabled(true);
-        SetCrosshairEnabled(m_reticleEnabled);
-        Logger::Instance().Info("Head tracking auto-enabled at startup");
+        SetCrosshairEnabled(true);
+        Logger::Instance().Info("Head tracking enabled at startup");
     } else {
         m_enabled.store(false);
         SetCameraHookEnabled(false);
         SetCrosshairEnabled(false);
-        Logger::Instance().Info("Head tracking disabled at startup (auto-enable is off)");
+        Logger::Instance().Info("Head tracking disabled at startup (EnableOnStartup is false)");
     }
 
     m_initialized.store(true);
@@ -135,11 +96,15 @@ bool Mod::Initialize() {
                             m_cameraHookInstalled ? "OK" : "FAILED",
                             m_inputHookInstalled ? "OK" : "FAILED");
 
-    // Log hotkey configuration for user reference
-    Logger::Instance().Info("Hotkeys: %s=Toggle", VirtualKeyToString(m_config.toggleKey));
+    // Every binding, not just the toggle: the log is the only place a player can read back what
+    // this build is bound to.
+    Logger::Instance().Info("Hotkeys: toggle=[%s] cycle tracking mode=[%s] yaw mode=[%s]",
+                            m_config.toggle_key_name.c_str(),
+                            m_config.cycle_tracking_mode_key_name.c_str(),
+                            m_config.yaw_mode_key_name.c_str());
 
     // Show startup notification if enabled
-    if (m_config.showNotifications) {
+    if (m_config.show_notifications) {
         std::string startupMsg = "DL2 Head Tracking v";
         startupMsg += DL2HT_VERSION;
         startupMsg += " - ";
@@ -147,7 +112,7 @@ bool Mod::Initialize() {
         ShowNotification(startupMsg.c_str());
 
         // Show hotkey hint after a delay
-        std::string hotkeyHint = VirtualKeyToString(m_config.toggleKey);
+        std::string hotkeyHint = m_config.toggle_key_name;
         hotkeyHint += "=Toggle";
         ShowNotification(hotkeyHint.c_str());
     }
@@ -172,47 +137,38 @@ void Mod::Shutdown() {
     Logger::Instance().Info("Shutdown complete");
 }
 
-bool Mod::LoadConfig() {
-    // Get path to config file (same directory as DLL)
-    std::string configPath = GetModulePath("HeadTracking.ini");
-
-    legacy::Config read;
-    if (legacy::Read(configPath.c_str(), read) != legacy::ReadStatus::Read) {
-        // Create default config file
-        m_config.SetDefaults();
-        // A file written before WorldLockedYaw existed has to keep reading as
-        // camera-local, so only a freshly created file starts world-locked.
-        m_config.worldLockedYaw = true;
-        m_config.Save(configPath.c_str());
-        return false;
+void Mod::LoadConfig() {
+    namespace cfg = cameraunlock::config;
+    const std::wstring folder = GetModuleDirectoryW();
+    if (folder.empty()) {
+        // Refuse a CWD-relative config, which would read and write the wrong file.
+        Logger::Instance().Error("Could not resolve the mod's folder for CameraUnlock.ini - using "
+                                 "built-in defaults, and nothing is saved this session");
+        m_config = MakeConfigTable().defaults();
+        return;
     }
 
-    m_config.udpPort = read.udpPort;
-    m_config.yawMultiplier = read.yawMultiplier;
-    m_config.pitchMultiplier = read.pitchMultiplier;
-    m_config.rollMultiplier = read.rollMultiplier;
-    m_config.toggleKey = read.toggleKey;
-    m_config.trackingModeKey = read.trackingModeKey;
-    m_config.yawModeKey = read.yawModeKey;
-    m_config.reticleToggleKey = read.reticleToggleKey;
-    m_config.worldLockedYaw = read.worldLockedYaw;
-    m_config.positionSensitivityX = read.positionSensitivityX;
-    m_config.positionSensitivityY = read.positionSensitivityY;
-    m_config.positionSensitivityZ = read.positionSensitivityZ;
-    m_config.positionLimitX = read.positionLimitX;
-    m_config.positionLimitY = read.positionLimitY;
-    m_config.positionLimitZ = read.positionLimitZ;
-    m_config.positionLimitZBack = read.positionLimitZBack;
-    m_config.positionInvertX = read.positionInvertX;
-    m_config.positionInvertY = read.positionInvertY;
-    m_config.positionInvertZ = read.positionInvertZ;
-    m_config.positionEnabled = read.positionEnabled;
-    m_config.localSmoothing = read.localSmoothing;
-    m_config.remoteSmoothing = read.remoteSmoothing;
-    m_config.reticleEnabled = read.reticleEnabled;
-    m_config.autoEnable = read.autoEnable;
-    m_config.showNotifications = read.showNotifications;
-    return true;
+    m_configOwner.emplace(MakeConfigOwnerOptions(folder, cfg::DefaultsFile::PerUser()));
+    const cfg::ConfigLoadResult<Config> loaded = m_configOwner->Load();
+    for (const std::string& line : loaded.log) Logger::Instance().Info("%s", line.c_str());
+    Logger::Instance().Info("Config: %s", cfg::ConfigLoadStatusName(loaded.status));
+    if (!loaded.reason.empty()) Logger::Instance().Warning("%s", loaded.reason.c_str());
+    // Every status hands back the settings to run on. A file the last version could not open ran
+    // it on its defaults, and a LegacyRefused load gives exactly those.
+    m_config = loaded.config;
+}
+
+void Mod::SaveToggle(const std::function<void(Config&)>& change) {
+    if (!m_configOwner) {
+        Logger::Instance().Warning("Not saved: CameraUnlock.ini has no known folder this session");
+        return;
+    }
+    const cameraunlock::config::ConfigSaveResult saved = m_configOwner->Save(change);
+    // A save that succeeds can carry a line too, naming a row that stopped following Defaults.ini.
+    for (const std::string& line : saved.log) Logger::Instance().Info("%s", line.c_str());
+    if (saved.status != cameraunlock::config::ConfigSaveStatus::Saved) {
+        Logger::Instance().Warning("%s", saved.reason.c_str());
+    }
 }
 
 bool Mod::InitializeHooks() {
@@ -280,18 +236,18 @@ void Mod::SetEnabled(bool enabled) {
     if (wasEnabled != enabled) {
         // Update hooks directly
         SetCameraHookEnabled(enabled);
-        SetCrosshairEnabled(enabled && m_reticleEnabled);
+        SetCrosshairEnabled(enabled);
         SetStockCrosshairVisible(!enabled);
 
         if (enabled) {
             Logger::Instance().Info("Head tracking enabled");
-            if (m_config.showNotifications) {
+            if (m_config.show_notifications) {
                 ShowNotification("Head Tracking: ON");
                 ShowNotification("Disable stock crosshair in Options>HUD");
             }
         } else {
             Logger::Instance().Info("Head tracking disabled");
-            if (m_config.showNotifications) {
+            if (m_config.show_notifications) {
                 ShowNotification("Head Tracking: OFF");
             }
         }
@@ -300,15 +256,6 @@ void Mod::SetEnabled(bool enabled) {
 
 void Mod::Toggle() {
     SetEnabled(!m_enabled.load());
-}
-
-void Mod::ToggleReticle() {
-    m_reticleEnabled = !m_reticleEnabled;
-    SetCrosshairEnabled(m_enabled.load() && m_reticleEnabled);
-    Logger::Instance().Info("Reticle %s", m_reticleEnabled ? "enabled" : "disabled");
-    if (m_config.showNotifications) {
-        ShowNotification(m_reticleEnabled ? "Reticle: ON" : "Reticle: OFF");
-    }
 }
 
 void Mod::CycleTrackingMode() {
@@ -331,25 +278,26 @@ void Mod::CycleTrackingMode() {
             break;
     }
     Logger::Instance().Info("Tracking mode: %s", label);
-    if (m_config.showNotifications) {
+    if (m_config.show_notifications) {
         ShowNotification(notify);
     }
+    const cameraunlock::TrackingModeChannels channels = cameraunlock::EncodeTrackingMode(mode);
+    SaveToggle([channels](Config& c) {
+        c.rotation_enabled = channels.rotation_enabled;
+        c.position_enabled = channels.position_enabled;
+    });
 }
 
 void Mod::ToggleYawMode() {
     bool nowWorldLocked = !m_worldLockedYaw.load();
     m_worldLockedYaw.store(nowWorldLocked);
-    m_config.worldLockedYaw = nowWorldLocked;
-
-    // Persist so the mode survives a relaunch.
-    std::string configPath = GetModulePath("HeadTracking.ini");
-    m_config.Save(configPath.c_str());
 
     const char* label = nowWorldLocked ? "WorldLocked" : "CameraLocal";
     Logger::Instance().Info("Yaw mode: %s", label);
-    if (m_config.showNotifications) {
+    if (m_config.show_notifications) {
         ShowNotification(nowWorldLocked ? "Yaw Mode: World-Locked" : "Yaw Mode: Camera-Local");
     }
+    SaveToggle([nowWorldLocked](Config& c) { c.world_space_yaw = nowWorldLocked; });
 }
 
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {

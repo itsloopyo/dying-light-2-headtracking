@@ -1,114 +1,149 @@
 #include "pch.h"
 #include "config.h"
-#include "logger.h"
+
+#include "legacy_config/legacy_config.h"
+
+#include <cameraunlock/config/head_tracking_config_table.h>
+#include <cameraunlock/config/value_codecs.h>
+#include <cameraunlock/input/key_bindings.h>
+
+#include <cstdio>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace DL2HT {
 
-void Config::SetDefaults() {
-    udpPort = DL2HT_DEFAULT_UDP_PORT;
+namespace {
 
-    yawMultiplier = 1.0f;
-    pitchMultiplier = 1.0f;
-    rollMultiplier = 1.0f;
+namespace cfg = cameraunlock::config;
+using cameraunlock::input::KeyBinding;
+using cameraunlock::input::KeyModifiers;
 
-    toggleKey = DEFAULT_TOGGLE_KEY;
-    trackingModeKey = DEFAULT_TRACKING_MODE_KEY;
-    yawModeKey = DEFAULT_YAW_MODE_KEY;
-    reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
-
-    worldLockedYaw = DEFAULT_WORLD_LOCKED_YAW;
-
-    positionSensitivityX = 2.0f;
-    positionSensitivityY = 2.0f;
-    positionSensitivityZ = 2.0f;
-    positionLimitX = cameraunlock::PositionSettings{}.limit_x;
-    positionLimitY = cameraunlock::PositionSettings{}.limit_y;
-    positionLimitZ = cameraunlock::PositionSettings{}.limit_z;
-    positionLimitZBack = cameraunlock::PositionSettings{}.limit_z_back;
-    positionInvertX = false;
-    positionInvertY = false;
-    positionInvertZ = false;
-    positionEnabled = true;
-
-    localSmoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
-    remoteSmoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
-
-    reticleEnabled = true;
-
-    autoEnable = true;
-    showNotifications = true;
+// A legacy hotkey code and the Ctrl+Shift chord the builds always registered beside it, as one
+// key list.
+std::string KeyList(int vk, char letter, const char* key, std::vector<cfg::DroppedValue>& dropped) {
+    const std::string code = cfg::LegacyVirtualKeyToBindings(vk, "Hotkeys", key, dropped);
+    const std::string chord =
+        cameraunlock::input::FormatKeyBindings({KeyBinding{KeyModifiers::kCtrl | KeyModifiers::kShift, letter}});
+    return code.empty() ? chord : code + ", " + chord;
 }
 
-bool Config::Save(const char* path) const {
-    std::ofstream file(path);
-    if (!file.is_open()) {
-        Logger::Instance().Error("Failed to save config to %s", path);
-        return false;
+cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
+    legacy::Config c;
+    const legacy::ReadStatus status = legacy::Read(input.ansi_path.c_str(), c);
+    if (status == legacy::ReadStatus::OpenFailed) {
+        return cfg::ImportResult::Refused(
+            "the file could not be opened, so the mod runs on its default settings this session, "
+            "as the last version did");
+    }
+    // Without a file the build ran on its defaults with world-locked yaw, the file it then wrote.
+    if (status == legacy::ReadStatus::Absent) c.worldLockedYaw = true;
+
+    const Config defaults;
+    std::vector<cfg::DroppedValue> dropped;
+    std::vector<cfg::PoseShapingValue> shaping;
+
+    // The reader keeps the port at 1024 or above and both smoothing values finite and inside
+    // [0, 1], so these carry over as they are.
+    out.udp_port = c.udpPort;
+    out.enable_on_startup = c.autoEnable;
+    out.world_space_yaw = c.worldLockedYaw;
+    out.local_smoothing = c.localSmoothing;
+    out.position.local_smoothing = c.localSmoothing;
+    out.remote_smoothing = c.remoteSmoothing;
+    out.position.remote_smoothing = c.remoteSmoothing;
+
+    // [Position] Enabled chose only the mode the session started in: the cycle key reached every
+    // mode either way.
+    const cameraunlock::TrackingModeChannels mode = cameraunlock::EncodeTrackingMode(
+        c.positionEnabled ? cameraunlock::TrackingMode::RotationAndPosition
+                          : cameraunlock::TrackingMode::RotationOnly);
+    out.rotation_enabled = mode.rotation_enabled;
+    out.position_enabled = mode.position_enabled;
+
+    // The reader clamps each limit to [0.01, 2.0], which lets a NaN through; N2 takes that to the
+    // default. LimitY bounded both directions, so it becomes both explicit values.
+    const auto finite = [&dropped](float value, float row_default, const char* key) {
+        return cfg::LegacyFiniteOrDefault(value, row_default, "Position", key, dropped);
+    };
+    out.position.limit_x = finite(c.positionLimitX, defaults.position.limit_x, "LimitX");
+    out.position.limit_y = finite(c.positionLimitY, defaults.position.limit_y, "LimitY");
+    out.position.limit_y_down = out.position.limit_y;
+    out.position.limit_z = finite(c.positionLimitZ, defaults.position.limit_z, "LimitZ");
+    out.position.limit_z_back = finite(c.positionLimitZBack, defaults.position.limit_z_back, "LimitZBack");
+
+    // Every rotation sensitivity shipped at 1.0 and every inversion off, which is identity. The
+    // position sensitivity shipped at 2.0 on each axis, which Mod::Initialize now applies as a
+    // constant. A value the player changed from those is dropped.
+    const auto shape = [&](auto value, auto shipped, const char* section, const char* key) {
+        cfg::LegacyPoseShaping(value, shipped, section, key, shaping, dropped);
+    };
+    shape(c.yawMultiplier, legacy::kDefaultMultiplier, "Sensitivity", "YawMultiplier");
+    shape(c.pitchMultiplier, legacy::kDefaultMultiplier, "Sensitivity", "PitchMultiplier");
+    shape(c.rollMultiplier, legacy::kDefaultMultiplier, "Sensitivity", "RollMultiplier");
+    shape(c.positionSensitivityX, legacy::kDefaultPositionSensitivity, "Position", "SensitivityX");
+    shape(c.positionSensitivityY, legacy::kDefaultPositionSensitivity, "Position", "SensitivityY");
+    shape(c.positionSensitivityZ, legacy::kDefaultPositionSensitivity, "Position", "SensitivityZ");
+    shape(c.positionInvertX, legacy::kDefaultPositionInvert, "Position", "InvertX");
+    shape(c.positionInvertY, legacy::kDefaultPositionInvert, "Position", "InvertY");
+    shape(c.positionInvertZ, legacy::kDefaultPositionInvert, "Position", "InvertZ");
+
+    // The mod's aim dot is drawn whenever head tracking is on, with no switch and no key. A file
+    // that switched it off loses that switch, and the reticle key the build registered, a code
+    // GetAsyncKeyState can report, is gone with its Ctrl+Shift+U.
+    if (!c.reticleEnabled) dropped.push_back({cfg::DropRule::Reticle, "Reticle", "Enabled", "false"});
+    if (c.reticleToggleKey >= 0x01 && c.reticleToggleKey <= 0xFF) {
+        char code[8];
+        std::snprintf(code, sizeof(code), "0x%02X", static_cast<unsigned>(c.reticleToggleKey));
+        dropped.push_back({cfg::DropRule::Reticle, "Hotkeys", "ReticleToggleKey", code});
     }
 
-    file << "; DL2 Head Tracking Configuration\n";
-    file << "; Delete this file to reset to defaults\n\n";
+    out.toggle_key_name = KeyList(c.toggleKey, 'Y', "ToggleKey", dropped);
+    out.cycle_tracking_mode_key_name = KeyList(c.trackingModeKey, 'G', "TrackingModeKey", dropped);
+    out.yaw_mode_key_name = KeyList(c.yawModeKey, 'H', "YawModeKey", dropped);
 
-    file << "[Network]\n";
-    file << "; UDP port for OpenTrack data (default: 4242)\n";
-    file << "UDPPort=" << udpPort << "\n\n";
+    out.show_notifications = c.showNotifications;
 
-    file << "[Sensitivity]\n";
-    file << "; Rotation sensitivity multipliers (1.0 = 1:1)\n";
-    file << "YawMultiplier=" << yawMultiplier << "\n";
-    file << "PitchMultiplier=" << pitchMultiplier << "\n";
-    file << "RollMultiplier=" << rollMultiplier << "\n\n";
+    return status == legacy::ReadStatus::Absent ? cfg::ImportResult::Absent(std::move(dropped), std::move(shaping))
+                                                : cfg::ImportResult::Imported(std::move(dropped), std::move(shaping));
+}
 
-    file << "[Position]\n";
-    file << "; Position tracking sensitivity (0.1-10.0, higher = more movement)\n";
-    file << "SensitivityX=" << positionSensitivityX << "\n";
-    file << "SensitivityY=" << positionSensitivityY << "\n";
-    file << "SensitivityZ=" << positionSensitivityZ << "\n";
-    file << "; Position limits in meters (how far the camera can move)\n";
-    file << "LimitX=" << positionLimitX << "\n";
-    file << "LimitY=" << positionLimitY << "\n";
-    file << "LimitZ=" << positionLimitZ << "\n";
-    file << "; Backward lean limit (prevents camera clipping through player model)\n";
-    file << "LimitZBack=" << positionLimitZBack << "\n";
-    file << "; Invert position axes\n";
-    file << "InvertX=" << (positionInvertX ? "true" : "false") << "\n";
-    file << "InvertY=" << (positionInvertY ? "true" : "false") << "\n";
-    file << "InvertZ=" << (positionInvertZ ? "true" : "false") << "\n";
-    file << "; Enable/disable position tracking (6DOF)\n";
-    file << "Enabled=" << (positionEnabled ? "true" : "false") << "\n\n";
+} // namespace
 
-    file << "[Smoothing]\n";
-    file << "; Smoothing is chosen per connection from the tracker's source address\n";
-    file << "; and covers rotation and position. 0.0 = none, 1.0 = heavy.\n";
-    file << "; LocalSmoothing: tracker running on this machine (loopback)\n";
-    file << "LocalSmoothing=" << localSmoothing << "\n";
-    file << "; RemoteSmoothing: tracker on a remote network device, e.g. a phone\n";
-    file << "RemoteSmoothing=" << remoteSmoothing << "\n\n";
+cfg::ConfigTable<Config> MakeConfigTable() {
+    using C = cfg::schema::Concept;
+    cfg::ConfigTable<Config> table = cfg::HeadTrackingConfigTable<Config>(
+        {C::UdpPort, C::EnableOnStartup, C::WorldSpaceYaw, C::RotationEnabled, C::LocalSmoothing,
+         C::RemoteSmoothing, C::PositionEnabled, C::PositionLimitX, C::PositionLimitY, C::PositionLimitYDown,
+         C::PositionLimitZ, C::PositionLimitZBack, C::ToggleKey, C::CycleTrackingModeKey, C::YawModeKey});
+    table.Select(C::WorldSpaceYaw).Writable()
+        .Select(C::RotationEnabled).Writable()
+        .Select(C::PositionEnabled).Writable();
+    table.Local("General", "ShowNotifications", &Config::show_notifications, cfg::BoolCodec(),
+                "true: write the mod's notices (tracking on or off, a mode change) to HeadTracking.log.");
+    return table;
+}
 
-    file << "[Hotkeys]\n";
-    file << "; Virtual key codes (hex)\n";
-    file << "ToggleKey=0x" << std::hex << toggleKey << "    ; End - Enable/disable\n";
-    file << "TrackingModeKey=0x" << std::hex << trackingModeKey << " ; Page Up - Cycle tracking mode\n";
-    file << "YawModeKey=0x" << std::hex << yawModeKey << " ; Page Down - Toggle yaw mode\n";
-    file << "ReticleToggleKey=0x" << std::hex << reticleToggleKey << "  ; Insert - Toggle reticle\n\n";
+cfg::LegacyImport<Config> MakeLegacyImport() {
+    return {&Import, legacy::ReadKeys()};
+}
 
-    file << "[Rotation]\n";
-    file << "; Yaw rotation frame. true = world-up (horizon-locked, default); false = camera-local.\n";
-    file << "WorldLockedYaw=" << (worldLockedYaw ? "true" : "false") << "\n\n";
+cfg::ConfigOwnerOptions<Config> MakeConfigOwnerOptions(const std::wstring& folder, cfg::DefaultsFile defaults) {
+    cfg::ConfigOwnerOptions<Config> options;
+    options.path = folder + kConfigFileName;
+    options.table = MakeConfigTable();
+    options.import = MakeLegacyImport();
+    options.legacy_path = folder + kLegacyFileName;
+    options.header.display_name = kConfigDisplayName;
+    options.defaults = std::move(defaults);
+    return options;
+}
 
-    file << "[Reticle]\n";
-    file << "; Show the head tracking reticle overlay\n";
-    file << "Enabled=" << (reticleEnabled ? "true" : "false") << "\n\n";
-
-    file << "[General]\n";
-    file << "; Auto-enable tracking on game start\n";
-    file << "AutoEnable=" << (autoEnable ? "true" : "false") << "\n";
-    file << "; Show on-screen notifications\n";
-    file << "ShowNotifications=" << (showNotifications ? "true" : "false") << "\n";
-
-    file.close();
-    Logger::Instance().Info("Config saved to %s", path);
-    return true;
+cameraunlock::TrackingMode StartupTrackingMode(const Config& config) {
+    const auto mode = cameraunlock::DecodeTrackingMode(config.rotation_enabled, config.position_enabled);
+    if (!mode) throw std::logic_error("RotationEnabled and PositionEnabled are both false, which the table never gives");
+    return *mode;
 }
 
 } // namespace DL2HT

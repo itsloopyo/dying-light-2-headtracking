@@ -2,8 +2,12 @@
 
 #include "config.h"
 #include "rotation_math.h"
+#include <cameraunlock/config/config_owner.h>
 #include <cameraunlock/protocol/udp_receiver.h>
 #include <cameraunlock/tracking/head_tracking_session.h>
+
+#include <functional>
+#include <optional>
 
 namespace DL2HT {
 
@@ -20,7 +24,6 @@ public:
 
     void CycleTrackingMode();
     void ToggleYawMode();
-    void ToggleReticle();
 
     YawMode GetYawMode() const {
         return m_worldLockedYaw.load() ? YawMode::WorldLocked : YawMode::CameraLocal;
@@ -45,7 +48,10 @@ private:
     Mod() : m_session(m_udpReceiver) {}
     ~Mod() = default;
 
-    bool LoadConfig();
+    void LoadConfig();
+    // Applies nothing: the caller has already changed the running state. A failed save is logged
+    // and the session keeps the new value.
+    void SaveToggle(const std::function<void(Config&)>& change);
     bool InitializeHooks();
     void ShutdownHooks();
 
@@ -53,11 +59,11 @@ private:
     std::atomic<bool> m_initialized{false};
 
     Config m_config;
+    // The one reader and writer of CameraUnlock.ini. Hotkeys save through it after LoadConfig has
+    // built it on the init thread.
+    std::optional<cameraunlock::config::ConfigOwner<Config>> m_configOwner;
     cameraunlock::UdpReceiver m_udpReceiver;
     cameraunlock::HeadTrackingSession<cameraunlock::UdpReceiver> m_session;
-
-    // Reticle overlay
-    bool m_reticleEnabled = true;
 
     // Yaw rotation frame (PgDn / Ctrl+Shift+H toggles)
     std::atomic<bool> m_worldLockedYaw{false};

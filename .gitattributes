@@ -98,3 +98,4 @@ docker-compose*.yml text eol=lf
 *.war binary
 *.ear binary
 tests/config_differential/inputs/** -text
+HeadTracking.ini -text

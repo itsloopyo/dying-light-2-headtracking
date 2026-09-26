@@ -36,11 +36,6 @@ if (-not (Test-Path $asiPath)) {
     throw "DL2HeadTracking.asi not found at: $asiPath"
 }
 
-$iniPath = Join-Path $projectDir "HeadTracking.ini"
-if (-not (Test-Path $iniPath)) {
-    throw "HeadTracking.ini not found at: $iniPath"
-}
-
 $vendorAsiDir = Join-Path $projectDir "vendor/ultimate-asi-loader"
 $vendorAsiDll = Join-Path $vendorAsiDir "dinput8.dll"
 if (-not (Test-Path $vendorAsiDll)) {
@@ -96,9 +91,6 @@ New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
 
 Copy-Item $asiPath -Destination $pluginsDir -Force
 Write-Host "  plugins/DL2HeadTracking.asi" -ForegroundColor Green
-
-Copy-Item $iniPath -Destination $pluginsDir -Force
-Write-Host "  plugins/HeadTracking.ini" -ForegroundColor Green
 
 # Bundle Ultimate ASI Loader (MIT, see THIRD-PARTY-NOTICES.md) so install.cmd
 # has no GitHub dependency at install time.
@@ -163,9 +155,6 @@ New-Item -ItemType Directory -Path $nexusGameDir -Force | Out-Null
 
 Copy-Item $asiPath -Destination $nexusGameDir -Force
 Write-Host "  ph/work/bin/x64/DL2HeadTracking.asi" -ForegroundColor Green
-
-Copy-Item $iniPath -Destination $nexusGameDir -Force
-Write-Host "  ph/work/bin/x64/HeadTracking.ini" -ForegroundColor Green
 
 # No Ultimate ASI Loader here. Vendoring the loader is for our own installer
 # and for Lopari; a Nexus upload must not redistribute another author's tool,

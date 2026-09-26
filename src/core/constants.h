@@ -10,19 +10,12 @@ inline constexpr const char* DL2HT_VERSION = "0.1.0";
 // Target game DLL
 inline constexpr const char* DL2_GAME_DLL = "gamedll_ph_x64_rwdi.dll";
 
-// Default UDP port for OpenTrack
-inline constexpr uint16_t DL2HT_DEFAULT_UDP_PORT = 4242;
-
 // Shared math constant
 inline constexpr float DEG_TO_RAD = 0.0174533f;
 
-// Default hotkey virtual key codes
-inline constexpr int DEFAULT_TOGGLE_KEY = 0x23;    // VK_END - Enable/disable tracking
-inline constexpr int DEFAULT_TRACKING_MODE_KEY = 0x21;   // VK_PRIOR (Page Up) - Cycle tracking mode
-inline constexpr int DEFAULT_YAW_MODE_KEY = 0x22;        // VK_NEXT (Page Down) - Toggle yaw mode
-inline constexpr int DEFAULT_RETICLE_TOGGLE_KEY = 0x2D;  // VK_INSERT - Toggle reticle
-
-// Default rotation settings
-inline constexpr bool DEFAULT_WORLD_LOCKED_YAW = false;  // false = camera-local yaw, true = world-up yaw
+// Every published build shipped [Position] SensitivityX/Y/Z=2.0: a lean moves the camera twice
+// as far as the head moved. That factor is the mod's conversion from the tracker's metres to
+// this camera, not a setting, so it stays here and the limits still bound the result.
+inline constexpr float kPositionSensitivity = 2.0f;
 
 } // namespace DL2HT

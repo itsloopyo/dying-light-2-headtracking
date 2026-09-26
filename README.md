@@ -6,6 +6,11 @@ An unofficial head tracking mod for Dying Light 2 Stay Human that moves the view
 
 Lean into a window frame while your crosshair stays on the zombie you were already aiming at. Glance down at a rooftop gap mid-parkour without your jump going with your eyes. Your head drives the camera; the mouse still drives the aim.
 
+**Updating from an earlier version?** Settings now live in `CameraUnlock.ini`
+in `ph/work/bin/x64`, next to the mod. The first start of this version reads
+your settings from `HeadTracking.ini` into it and leaves `HeadTracking.ini` as
+it was. See [Configuration](#configuration).
+
 ## Features
 
 - **Decoupled look + aim**: Look around freely with your head while your aim stays independent
@@ -49,7 +54,7 @@ Download [Lopari](https://lopari.app), choose **Dying Light 2 Stay Human**, and 
    ```
    <DL2 Install>/ph/work/bin/x64/DL2HeadTracking.asi
    ```
-2. Copy `HeadTracking.ini` to the same directory (optional - defaults will be created)
+2. Start the game. The mod creates `CameraUnlock.ini` in the same directory.
 
 ### Finding Your Game Directory
 
@@ -127,7 +132,9 @@ Two equivalent binding sets - use whichever your keyboard has:
 | Toggle tracking     | `End`       | `Ctrl+Shift+Y` |
 | Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G` |
 | Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H` |
-| Toggle reticle      | `Insert`    | `Ctrl+Shift+U` |
+
+Both keys of each action are one list in `CameraUnlock.ini` (`ToggleKey`,
+`CycleTrackingModeKey`, `YawModeKey`), so either can be rebound or removed.
 
 `Page Up` / `Ctrl+Shift+G` cycles tracking mode:
 
@@ -144,58 +151,131 @@ Two equivalent binding sets - use whichever your keyboard has:
 - **Camera-local**: yaw rotates around your head's up axis. When you pitch
   the view down and yaw, the horizon tilts and the view sweeps a cone.
 
-Your choice is remembered across sessions (written back to
-`HeadTracking.ini`).
+The tracking mode and the yaw mode are saved to `CameraUnlock.ini` when you
+change them, and the game starts in them next time. `End` changes the current
+session only: head tracking starts on or off as `EnableOnStartup` says.
+
+While head tracking is on, the mod draws a dot where your aim points. There is
+no longer a key or setting that hides it.
 
 ## Configuration
 
-The mod creates `HeadTracking.ini` in the game directory with default settings on first run. Edit it to customize:
+<!-- cameraunlock:config -->
+The mod reads its settings from `ph\work\bin\x64\CameraUnlock.ini` in the game folder, and creates the file when it starts and finds none. Edit it with any text editor.
+
+A setting set to `default` takes its value from `Defaults.ini`, which every head tracking mod that keeps its settings in `CameraUnlock.ini` reads. Head tracking mods that keep their settings in another file do not read it, and neither do earlier versions of this mod. Writing a value in place of `default` changes that setting for this game only. When the mod saves a setting that a hotkey changed in game, it writes the new value in place of `default`, so that setting no longer follows `Defaults.ini` in this game until you set it to `default` again.
+
+`Defaults.ini` is `%AppData%\CameraUnlock\Defaults.ini` on Windows; `$XDG_CONFIG_HOME/CameraUnlock/Defaults.ini` on Linux, or `~/.config/CameraUnlock/Defaults.ini` where `XDG_CONFIG_HOME` is not set, under Wine and Proton too; and `~/Library/Application Support/CameraUnlock/Defaults.ini` on macOS. The mod's log, where it writes one, names the file it read.
+
+When the mod starts and finds no `Defaults.ini`, it creates one holding the built-in values, unless Windows runs the game as a packaged app. The mod never changes `Defaults.ini` after that. Edit it with any text editor.
+
+Earlier versions of the mod kept these settings in `HeadTracking.ini`, in the same folder. The first time this version starts and finds no `CameraUnlock.ini`, it reads your settings from `HeadTracking.ini` and writes them into `CameraUnlock.ini`. It never changes `HeadTracking.ini`, and does not read it again while `CameraUnlock.ini` exists.
+
+A setting that the defaults below set to `default` is written as `default` when the value imported for it equals its default at that start, which is the value `Defaults.ini` gives it, or the built-in value where `Defaults.ini` gives none. It then follows `Defaults.ini`. Every other setting is written with the value imported for it. `RotationEnabled` and `PositionEnabled` are one setting here, the tracking mode, so both are written as `default` or neither is.
+
+Comments, and keys the mod never read, are not carried over. Nor are these, where your old file had them:
+
+- Reticle settings, and a key that toggled the reticle.
+- A sensitivity, scale, deadzone, response curve or axis inversion you changed from its default. Set these in your tracker instead.
+- The setting for a feature that earlier versions shipped switched off while it was untested. It now follows the mod's default.
+
+An older version of the mod reads `HeadTracking.ini` and never reads `CameraUnlock.ini`, so a setting you change after updating is not in `HeadTracking.ini`.
+
+Deleting only `CameraUnlock.ini` makes the next start read `HeadTracking.ini` again. To go back to the defaults, replace everything in `CameraUnlock.ini` with the defaults below. Every setting they set to `default` then follows `Defaults.ini`.
+
+The built-in value of each setting set to `default` below:
+
+- `UdpPort=4242`
+- `EnableOnStartup=true`
+- `WorldSpaceYaw=true`
+- `RotationEnabled=true`
+- `LocalSmoothing=0.0`
+- `RemoteSmoothing=0.15`
+- `PositionEnabled=true`
+- `PositionLimitX=0.3`
+- `PositionLimitY=0.2`
+- `PositionLimitYDown=0.2`
+- `PositionLimitZ=0.4`
+- `PositionLimitZBack=0.1`
+- `ToggleKey=End, Ctrl+Shift+Y`
+- `CycleTrackingModeKey=PageUp, Ctrl+Shift+G`
+- `YawModeKey=PageDown, Ctrl+Shift+H`
+
+With every setting at its default, the file reads:
 
 ```ini
+; Dying Light 2 Stay Human head tracking settings.
+; Comments start with ; and go on their own line. Text after a value is part of the value.
+; Hotkeys are key names such as End, PageUp or Ctrl+Shift+Y. Separate several with commas; leave empty for none.
+; A setting set to default takes its value from Defaults.ini, which every head tracking mod
+; that keeps its settings in CameraUnlock.ini reads: %AppData%\CameraUnlock\Defaults.ini on
+; Windows, $XDG_CONFIG_HOME/CameraUnlock/Defaults.ini (normally ~/.config/CameraUnlock) on
+; Linux, under Wine and Proton too, and ~/Library/Application Support/CameraUnlock/Defaults.ini
+; on macOS. The log names the file it read. Write a value instead of default to change that
+; setting for this game only.
+
+[CameraUnlock]
+; Written by the mod. Leave this section in place.
+ConfigFormat=1
+
 [Network]
-UDPPort=4242              ; UDP port for tracker data
-
-[Sensitivity]
-YawMultiplier=1.0         ; Horizontal rotation sensitivity (0.1-5.0)
-PitchMultiplier=1.0       ; Vertical rotation sensitivity (0.1-5.0)
-RollMultiplier=1.0        ; Tilt sensitivity (0.0-2.0)
-
-[Position]
-SensitivityX=2.0          ; Position sensitivity per axis (0.1-10.0)
-SensitivityY=2.0
-SensitivityZ=2.0
-LimitX=0.3                ; Max offset in meters per axis
-LimitY=0.2
-LimitZ=0.4
-InvertX=false             ; Invert position axes
-InvertY=false
-; InvertZ is for a tracker that sends depth backwards, not for a lean that
-; feels reversed. It is applied before the LimitZ / LimitZBack clamp, so
-; turning it on also swaps the travel budgets to 0.10m forward and 0.40m back.
-InvertZ=false
-Enabled=true              ; Enable/disable positional tracking (set false for 3DOF only)
-
-[Smoothing]
-; Chosen per connection from the tracker's source address; covers rotation and position
-LocalSmoothing=0.0        ; Tracker on this machine, loopback (0.0-1.0)
-RemoteSmoothing=0.15      ; Tracker on a remote network device, e.g. a phone (0.0-1.0)
-
-[Hotkeys]
-ToggleKey=0x23            ; End key (VK code in hex)
-TrackingModeKey=0x21      ; Page Up key - cycles normal / rotation only / position only
-YawModeKey=0x22           ; Page Down key - toggles camera-local / world-locked yaw
-ReticleToggleKey=0x2d     ; Insert key (VK code in hex)
-
-[Rotation]
-WorldLockedYaw=true       ; true = world-up yaw (default), false = camera-local
-
-[Reticle]
-Enabled=true              ; Show/hide the head tracking reticle overlay
+; UDP port the mod receives tracker data on (OpenTrack protocol).
+UdpPort=default
 
 [General]
-AutoEnable=true           ; Start tracking when game launches
-ShowNotifications=true    ; Show on-screen status messages
+; true: head tracking is on when the game starts. ToggleKey turns it on and off.
+EnableOnStartup=default
+; true: yaw turns around the world's up axis. false: around the camera's own up axis.
+WorldSpaceYaw=default
+; true: turning your head turns the view.
+; Tracking mode at startup, with PositionEnabled. The mode hotkey changes both.
+RotationEnabled=default
+; true: write the mod's notices (tracking on or off, a mode change) to HeadTracking.log.
+ShowNotifications=true
+
+[Smoothing]
+; Smoothing when the tracker runs on this PC. 0 is the least, 1 the most.
+LocalSmoothing=default
+; Smoothing when the tracker is another device on the network, such as a phone.
+; 0 is the least, 1 the most.
+RemoteSmoothing=default
+
+[Position]
+; true: moving your head moves the view.
+; Tracking mode at startup, with RotationEnabled. The mode hotkey changes both.
+PositionEnabled=default
+; How far, in metres, leaning left or right can move the view.
+PositionLimitX=default
+; How far, in metres, raising your head can move the view.
+PositionLimitY=default
+; How far, in metres, lowering your head can move the view.
+PositionLimitYDown=default
+; How far, in metres, leaning forward can move the view.
+PositionLimitZ=default
+; How far, in metres, leaning back can move the view.
+PositionLimitZBack=default
+
+[Hotkeys]
+; Turns head tracking on and off.
+ToggleKey=default
+; Changes the tracking mode: rotation and position, rotation only, position only.
+CycleTrackingModeKey=default
+; Switches yaw between the world's up axis and the camera's own (WorldSpaceYaw).
+YawModeKey=default
 ```
+<!-- /cameraunlock:config -->
+
+Earlier versions also read these settings, which this version no longer
+reads: `YawMultiplier`, `PitchMultiplier` and `RollMultiplier` under
+`[Sensitivity]`, `SensitivityX`, `SensitivityY`, `SensitivityZ`, `InvertX`,
+`InvertY` and `InvertZ` under `[Position]`, `[Reticle] Enabled` and
+`[Hotkeys] ReticleToggleKey`. A lean still moves the view twice as far as your
+head moves, as the shipped `SensitivityX/Y/Z=2.0` did, and the aim dot is drawn
+whenever head tracking is on.
+
+The mod applies the head pose as your tracker sends it. Set sensitivity,
+response curves and axis inversion in your tracker, so the same profile works
+across games.
 
 ## Troubleshooting
 
@@ -206,22 +286,29 @@ ShowNotifications=true    ; Show on-screen status messages
 
 **No tracking response:**
 - Ensure your tracker is running and outputting data
-- Verify UDP port matches in both tracker and `HeadTracking.ini`
+- Verify the UDP port matches in both the tracker and `CameraUnlock.ini` (`UdpPort`)
 - Press `End` to enable tracking if auto-enable is off
 - If the view sits off to one side, centre it in your tracker app (opentrack's
   Center bind, or the CENTER button in a Headcam app)
 
 **Camera jittering:**
 - Increase filtering in your tracker software
-- Reduce sensitivity multipliers in `HeadTracking.ini`
+- Raise `LocalSmoothing` or `RemoteSmoothing` in `CameraUnlock.ini`
 - Improve lighting for webcam-based tracking
+
+## Updating
+
+Update through Lopari, or download the new release and run `install.cmd` again.
+Neither copies a config file, so your `CameraUnlock.ini` stays as it is.
 
 ## Uninstalling
 
 **Remove the mod only** - delete from `<DL2 Install>/ph/work/bin/x64/`:
 - `DL2HeadTracking.asi`
-- `HeadTracking.ini`
 - `HeadTracking.log` and `HeadTracking.prev.log` (if present)
+
+`uninstall.cmd` removes the same files and leaves `CameraUnlock.ini` and
+`HeadTracking.ini` in place, so your settings survive a reinstall.
 
 **Remove all mods** - delete `winmm.dll` from the game directory to disable ASI loading entirely.
 
@@ -273,9 +360,6 @@ Output: `bin/Debug/DL2HeadTracking.asi` or `bin/Release/DL2HeadTracking.asi`
 ```bash
 # Build release and install to game directory
 pixi run install
-
-# Install only config file (for quick settings changes)
-pixi run deploy-config
 ```
 
 The install scripts automatically detect your game installation via Steam/registry.
@@ -287,7 +371,7 @@ dying-light-2-headtracking/
 ├── src/
 │   ├── core/           # Core mod logic
 │   │   ├── mod.cpp     # Main mod class
-│   │   ├── config.cpp  # Configuration handling
+│   │   ├── config.cpp  # CameraUnlock.ini's table and HeadTracking.ini's import
 │   │   └── logger.cpp  # Logging
 │   ├── hooks/          # Game hooks
 │   │   ├── engine_camera_hook.cpp  # Camera manipulation
@@ -299,7 +383,7 @@ dying-light-2-headtracking/
 ├── extern/             # Vendored third-party sources (MinHook, ImGui, Kiero, inih)
 ├── vendor/             # Vendored Ultimate ASI Loader binary + its licence
 ├── scripts/            # Build and deployment scripts
-├── HeadTracking.ini    # Default configuration
+├── HeadTracking.ini    # The CameraUnlock.ini a first launch creates (pixi run render-config)
 ├── CMakeLists.txt      # Build configuration
 └── pixi.toml           # Task runner configuration
 ```
@@ -312,7 +396,8 @@ dying-light-2-headtracking/
 | `build-release` | Build release configuration |
 | `install` | Build release and install to game directory |
 | `uninstall` | Remove HeadTracking mod only |
-| `deploy-config` | Deploy only config file |
+| `test` | Run the config tests |
+| `render-config` | Rewrite the committed config after a change to the config table |
 | `detect-game` | Show detected game path |
 | `clean` | Clean build artifacts |
 | `clean-all` | Clean all artifacts including release |

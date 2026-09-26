@@ -1,59 +1,42 @@
 #pragma once
 
-#include <cameraunlock/data/position_settings.h>
-#include <cameraunlock/math/smoothing_utils.h>
+#include <cameraunlock/config/config_owner.h>
+#include <cameraunlock/config/config_table.h>
+#include <cameraunlock/config/defaults_file.h>
+#include <cameraunlock/config/head_tracking_config.h>
+#include <cameraunlock/config/legacy_import.h>
+#include <cameraunlock/tracking/tracking_mode.h>
 
-#include <cstdint>
+#include <string>
 
 namespace DL2HT {
 
-struct Config {
-    // Network settings
-    uint16_t udpPort = DL2HT_DEFAULT_UDP_PORT;
+// The settings file, and the file every build before it read, which the owner imports while the
+// settings file is absent and never writes.
+constexpr const wchar_t* kConfigFileName = L"CameraUnlock.ini";
+constexpr const wchar_t* kLegacyFileName = L"HeadTracking.ini";
+// The game's name as cameraunlock-core's data/games.json spells it.
+constexpr const char* kConfigDisplayName = "Dying Light 2 Stay Human";
 
-    // Sensitivity multipliers
-    float yawMultiplier = 1.0f;
-    float pitchMultiplier = 1.0f;
-    float rollMultiplier = 1.0f;
-
-    // Hotkeys (Virtual Key codes)
-    int toggleKey = DEFAULT_TOGGLE_KEY;
-    int trackingModeKey = DEFAULT_TRACKING_MODE_KEY;  // Page Up - cycles tracking mode (legacy INI key: PositionToggleKey)
-    int yawModeKey = DEFAULT_YAW_MODE_KEY;
-    int reticleToggleKey = DEFAULT_RETICLE_TOGGLE_KEY;
-
-    // Rotation settings
-    bool worldLockedYaw = DEFAULT_WORLD_LOCKED_YAW;
-
-    // Position settings (6DOF)
-    float positionSensitivityX = 2.0f;
-    float positionSensitivityY = 2.0f;
-    float positionSensitivityZ = 2.0f;
-    float positionLimitX = cameraunlock::PositionSettings{}.limit_x;
-    float positionLimitY = cameraunlock::PositionSettings{}.limit_y;
-    float positionLimitZ = cameraunlock::PositionSettings{}.limit_z;
-    float positionLimitZBack = cameraunlock::PositionSettings{}.limit_z_back;  // backward lean limit (asymmetric)
-    bool positionInvertX = false;
-    bool positionInvertY = false;
-    bool positionInvertZ = false;
-    bool positionEnabled = true;
-
-    // Smoothing settings. Chosen per connection from the packet source
-    // address: a tracker on this machine (loopback) uses localSmoothing, a
-    // remote network device uses remoteSmoothing. Both cover rotation and
-    // position; there is no separate position smoothing setting.
-    float localSmoothing = static_cast<float>(cameraunlock::math::kDefaultLocalSmoothing);
-    float remoteSmoothing = static_cast<float>(cameraunlock::math::kDefaultRemoteSmoothing);
-
-    // Reticle settings
-    bool reticleEnabled = true;
-
-    // General settings
-    bool autoEnable = true;
-    bool showNotifications = true;
-
-    bool Save(const char* path) const;
-    void SetDefaults();
+// Core's config, at core's defaults, and the one setting of this game's own.
+struct Config : cameraunlock::HeadTrackingConfig {
+    bool show_notifications = true;
 };
+
+// The rows of CameraUnlock.ini. Only the tracking mode pair and WorldSpaceYaw are Writable:
+// the mode and yaw hotkeys save the player's choice, and End changes the session only.
+cameraunlock::config::ConfigTable<Config> MakeConfigTable();
+
+// HeadTracking.ini as the builds before the canonical format read it (legacy_config/), mapped
+// into Config.
+cameraunlock::config::LegacyImport<Config> MakeLegacyImport();
+
+// The owner's options for CameraUnlock.ini in `folder`, a full path ending in a separator, with
+// HeadTracking.ini beside it as the legacy file.
+cameraunlock::config::ConfigOwnerOptions<Config> MakeConfigOwnerOptions(const std::wstring& folder,
+                                                                         cameraunlock::config::DefaultsFile defaults);
+
+// The tracking mode the settings start in. The table never gives both rows false.
+cameraunlock::TrackingMode StartupTrackingMode(const Config& config);
 
 } // namespace DL2HT

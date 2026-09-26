@@ -2,63 +2,43 @@
 #include "input_hook.h"
 #include "core/mod.h"
 #include "core/logger.h"
-#include "core/hotkey_utils.h"
 #include <cameraunlock/input/hotkey_poller.h>
-#include <cameraunlock/input/chord_hotkeys.h>
+#include <cameraunlock/input/key_binding_registration.h>
+#include <cameraunlock/input/key_bindings.h>
+
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace DL2HT {
-
-// Ctrl+Shift+<letter> chord fallbacks (CLAUDE.md cluster: Y/U/G/H).
-// Mapping kept in sync with README and with the CLAUDE.md hotkey spec.
-static constexpr int CHORD_TOGGLE_VK = 0x59;           // Y
-static constexpr int CHORD_TRACKING_MODE_VK = 0x47;    // G - cycle tracking mode
-static constexpr int CHORD_YAW_MODE_VK = 0x48;         // H
-static constexpr int CHORD_RETICLE_TOGGLE_VK = 0x55;   // U
 
 static cameraunlock::input::HotkeyPoller g_poller;
 static bool g_hotkeysRegistered = false;
 
-static void RegisterHotkeys(const Config& config) {
-    using cameraunlock::input::NavGuarded;
-    using cameraunlock::input::ChordGuarded;
+// The config table already refused a list that does not parse, so one here is a bug rather than
+// a player's typo.
+static std::vector<cameraunlock::input::KeyBinding> Parse(const std::string& list) {
+    cameraunlock::input::KeyBindingsParseResult parsed = cameraunlock::input::ParseKeyBindings(list);
+    if (!parsed.ok()) throw std::logic_error("hotkey list '" + list + "' does not parse: " + parsed.error);
+    return parsed.bindings;
+}
 
-    // Primary nav-cluster keys fire only when the Ctrl+Shift chord is NOT
-    // held, so Ctrl+Shift+End doesn't also trigger the End-only binding.
-    g_poller.AddHotkey(config.toggleKey, NavGuarded([] {
+static void RegisterHotkeys(const Config& config) {
+    // Each list from CameraUnlock.ini, chords included. A plain key does not fire while Ctrl and
+    // Shift are both held, so Ctrl+Shift with a key reaches only a binding that names the chord.
+    using cameraunlock::input::RegisterKeyBindings;
+    RegisterKeyBindings(g_poller, Parse(config.toggle_key_name), [] {
         Logger::Instance().Debug("Toggle key pressed");
         Mod::Instance().Toggle();
-    }));
-    g_poller.AddHotkey(CHORD_TOGGLE_VK, ChordGuarded([] {
-        Logger::Instance().Debug("Toggle chord (Ctrl+Shift+Y) pressed");
-        Mod::Instance().Toggle();
-    }));
-
-    g_poller.AddHotkey(config.trackingModeKey, NavGuarded([] {
+    });
+    RegisterKeyBindings(g_poller, Parse(config.cycle_tracking_mode_key_name), [] {
         Logger::Instance().Debug("Tracking mode key pressed");
         Mod::Instance().CycleTrackingMode();
-    }));
-    g_poller.AddHotkey(CHORD_TRACKING_MODE_VK, ChordGuarded([] {
-        Logger::Instance().Debug("Tracking mode chord (Ctrl+Shift+G) pressed");
-        Mod::Instance().CycleTrackingMode();
-    }));
-
-    g_poller.AddHotkey(config.yawModeKey, NavGuarded([] {
+    });
+    RegisterKeyBindings(g_poller, Parse(config.yaw_mode_key_name), [] {
         Logger::Instance().Debug("Yaw mode key pressed");
         Mod::Instance().ToggleYawMode();
-    }));
-    g_poller.AddHotkey(CHORD_YAW_MODE_VK, ChordGuarded([] {
-        Logger::Instance().Debug("Yaw mode chord (Ctrl+Shift+H) pressed");
-        Mod::Instance().ToggleYawMode();
-    }));
-
-    g_poller.AddHotkey(config.reticleToggleKey, NavGuarded([] {
-        Logger::Instance().Debug("Reticle toggle key pressed");
-        Mod::Instance().ToggleReticle();
-    }));
-    g_poller.AddHotkey(CHORD_RETICLE_TOGGLE_VK, ChordGuarded([] {
-        Logger::Instance().Debug("Reticle toggle chord (Ctrl+Shift+U) pressed");
-        Mod::Instance().ToggleReticle();
-    }));
+    });
 }
 
 bool InstallInputHook() {
@@ -77,8 +57,7 @@ bool InstallInputHook() {
         return false;
     }
 
-    Logger::Instance().Info("Input hook installed - Toggle: %s",
-        VirtualKeyToString(config.toggleKey));
+    Logger::Instance().Info("Input hook installed - Toggle: %s", config.toggle_key_name.c_str());
 
     return true;
 }
