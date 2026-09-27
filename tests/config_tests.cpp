@@ -1,7 +1,7 @@
 // The settings file: the committed HeadTracking.ini is the table's fresh render, which a first
 // launch creates as CameraUnlock.ini, the defaults the builds before it ran on without a file map
-// to the table's defaults, the file v1.4.0 shipped imports into the committed file but for the
-// yaw it named, the toggles save only their own lines, End's row cannot be saved, and a row
+// to the table's defaults, the file v1.4.0 shipped imports into the committed file, every row
+// left to Defaults.ini, the toggles save only their own lines, End's row cannot be saved, and a row
 // holding default takes Defaults.ini's value. Every owner reads a scratch Defaults.ini.
 //
 // `--render-config <path>` writes the committed file instead (pixi run render-config).
@@ -151,7 +151,7 @@ void TestDefaults() {
 
 // A start the frozen reader finds no file for maps to the table's defaults: the build ran on its
 // frozen defaults with world-locked yaw, every sensitivity and inversion they hold is the shipped
-// one, and only the reticle key the build bound is dropped.
+// one, only the reticle key the build bound is dropped, and every row follows Defaults.ini.
 void TestLegacyDefaultsMapToTheDefaults() {
     wchar_t temp[MAX_PATH];
     GetTempPathW(MAX_PATH, temp);
@@ -165,6 +165,7 @@ void TestLegacyDefaultsMapToTheDefaults() {
               result.dropped[0].key == "ReticleToggleKey" && result.dropped[0].value == "0x2D",
           "the old defaults drop only the reticle key, Insert");
     Check(result.pose_shaping.size() == 9, "every sensitivity and position inversion is recorded");
+    Check(result.follows_defaults_ini.size() == 15, "every one of the 15 rows follows Defaults.ini");
     for (const cfg::PoseShapingValue& value : result.pose_shaping) {
         Check(value.folded, "[" + value.section + "] " + value.key + " holds its shipped value and is folded");
     }
@@ -174,8 +175,8 @@ void TestLegacyDefaultsMapToTheDefaults() {
 }
 
 // Fresh equals upgrade: the file v1.4.0 shipped, and the one it wrote at first launch, import into
-// the committed file but for WorldSpaceYaw. Both name WorldLockedYaw=false, the camera-local yaw
-// v1.4.0 ran, which 0307ede moved the no-file default away from.
+// the committed file. Both name WorldLockedYaw=false, the camera-local yaw v1.4.0 defaulted to,
+// which no player chose, so it follows Defaults.ini like every other row.
 void TestShippedFilesImportAsTheCommittedFile() {
     const std::string committed = ReadBytes(Widen(DL2_COMMITTED_CONFIG));
     for (const char* file : {"shipped-v1.4.0.ini", "first-run-v1.4.0.ini"}) {
@@ -185,9 +186,7 @@ void TestShippedFilesImportAsTheCommittedFile() {
         WriteBytes(dir + kLegacyFileName, legacy);
         const auto loaded = cfg::ConfigOwner<Config>(Options(dir, global + L"Defaults.ini")).Load();
         Check(loaded.status == cfg::ConfigLoadStatus::Migrated, std::string(file) + " imports");
-        Check(ChangedLines(committed, ReadBytes(dir + kConfigFileName)) ==
-                  std::vector<std::string>{"WorldSpaceYaw=false"},
-              std::string(file) + " imports into the committed file with WorldSpaceYaw=false");
+        Check(ReadBytes(dir + kConfigFileName) == committed, std::string(file) + " imports into the committed file");
         Check(ReadBytes(dir + kLegacyFileName) == legacy, std::string(file) + " keeps its bytes");
         RemoveScratchFolder(dir);
         RemoveScratchFolder(global);

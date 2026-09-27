@@ -38,10 +38,13 @@
   never changes `HeadTracking.ini`, and does not read it again while
   `CameraUnlock.ini` exists.
 - A setting that the defaults the README shows set to `default` is written as
-  `default` when the value imported for it equals its default at that start,
-  which is the value `Defaults.ini` gives it, or the built-in value where
-  `Defaults.ini` gives none. It then follows `Defaults.ini`. Every other
-  setting is written with the value imported for it.
+  `default` when you never changed it from the default earlier versions used,
+  because `HeadTracking.ini` does not hold it or holds that default. It then
+  follows `Defaults.ini`, so it takes the value `Defaults.ini` gives it, or the
+  built-in value where `Defaults.ini` gives none, which can differ from the
+  default earlier versions used. A setting you changed is written with the
+  value imported for it, or as `default` where that value equals its default at
+  that start.
 - `RotationEnabled` and `PositionEnabled` are one setting here, the tracking
   mode, so both are written as `default` or neither is.
 - Comments, and keys the mod never read, are not carried over. Nor are these,
@@ -49,6 +52,9 @@
   - A sensitivity, scale, deadzone, response curve or axis inversion you
     changed from its default. Set these in your tracker instead.
   - Reticle settings, and a key that toggled the reticle.
+  - A hotkey set to Ctrl, Shift or Alt on its own. That key goes down before
+    the key of any chord made with it, so the hotkey is left unbound, and it
+    keeps its Ctrl+Shift chord.
 - An older version of the mod reads `HeadTracking.ini` and never reads
   `CameraUnlock.ini`, so a setting you change after updating is not in
   `HeadTracking.ini`.
@@ -82,8 +88,7 @@
   - `[Position] LimitY` bounds lowering your head as well as raising it.
     v1.4.0 kept the downward lean at 0.20 m whatever `LimitY` said (948add0).
   - A start that finds no `HeadTracking.ini`, or cannot open it, runs
-    world-locked yaw. v1.4.0 ran camera-local (0307ede). A file without
-    `WorldLockedYaw` still imports as camera-local.
+    world-locked yaw. v1.4.0 ran camera-local (0307ede).
   - A value continued on an indented line ends at a `;` comment on that line,
     so a continued `true ; note` reads as true. v1.4.0 read it as false
     (b993f62, the r58 release of inih).
@@ -109,9 +114,13 @@
   The two new keys cover rotation and position, so local users get
   zero-latency tracking by default.
 - World-locked yaw is now the default for new installs (`[Rotation]
-  WorldLockedYaw=true`), matching the other head-tracking mods. An existing
-  `HeadTracking.ini` keeps the mode it already has; Page Down switches it in
-  game.
+  WorldLockedYaw=true`), matching the other head-tracking mods. Page Down
+  switches it in game.
+- `WorldLockedYaw=false`, camera-local yaw, is the default every version up to
+  v1.4.0 wrote into `HeadTracking.ini`, so a file that holds it, or does not
+  hold the key, imports as `WorldSpaceYaw=default` and starts in world-locked
+  yaw, or in the yaw `Defaults.ini` gives. A file set to world-locked yaw keeps
+  it. Press Page Down in game to go back to camera-local yaw; the mod saves it.
 
 ### Removed
 

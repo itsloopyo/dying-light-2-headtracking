@@ -18,18 +18,29 @@
 // on are dropped (pose_shaping); the shipped values are what the mod now applies. [Reticle]
 // Enabled=false and the reticle key are dropped (reticle): the aim dot is drawn whenever head
 // tracking is on, and neither the key nor Ctrl+Shift+U toggles it. A hotkey code outside
-// 0x01-0xFE imports as unbound (N1), and a position limit that is not a number as its default
-// (N2). No default moved, so the no-file input has no difference either, and the reader keeps
-// every other value inside a range the canonical rows hold, so no input is deferred.
+// 0x01-0xFE imports as unbound (N1), as does a code on Ctrl, Shift or Alt alone (N3), each keeping
+// its Ctrl+Shift chord, and a position limit that is not a number imports as its default (N2).
+// The reader keeps every other value inside a range the canonical rows hold, so no input is
+// deferred.
+//
+// A row the player never changed from v1.4.0's default follows Defaults.ini: the import lists it
+// in follows_defaults_ini and the migration writes it default, the tracking mode pair as one
+// unit. The test derives that list from what the import read, a row whose every observed value
+// is the frozen default, and holds the import's list to it on every input. Every file a build
+// wrote or the repo kept, and the empty file, list every row and migrate to the committed file
+// byte for byte. The built-in values are the frozen defaults but for the yaw: v1.4.0 wrote
+// WorldLockedYaw=false, so a file that never changed it now starts in world-locked yaw, the
+// built-in value, which comparison 2 applies to the import's reading with the approved changes.
 //
 // Each input migrates three times: over a Defaults.ini at the built-in values, from a read-only
 // HeadTracking.ini, and over a Defaults.ini that differs from the built-in values on every global
-// row. All three give the same settings, since the migration writes default only where the
-// imported value is what default gives. Every load leaves HeadTracking.ini's bytes, last write
-// time and attributes as they were, the folder holds HeadTracking.ini and CameraUnlock.ini and
-// nothing else, and the next start reads CameraUnlock.ini, imports nothing and writes nothing.
-// The distinct migrated files are written beside the executable under migrated\, for
-// lint-migrated.mjs to run core's canonical config lint over.
+// row. The read-only file gives the settings the writable one does. Over the skewed Defaults.ini
+// a row the player never changed is default and takes its value, and a changed row keeps the
+// player's. Every load leaves HeadTracking.ini's bytes, last write time and attributes as they
+// were, the folder holds HeadTracking.ini and CameraUnlock.ini and nothing else, and the next
+// start reads CameraUnlock.ini, imports nothing and writes nothing. The distinct migrated files
+// are written beside the executable under migrated\, for lint-migrated.mjs to run core's
+// canonical config lint over.
 //
 // Inputs: no file, an empty file, every HeadTracking.ini a release shipped (installer ZIP, Nexus
 // ZIP and launcher seed carry the same bytes in each release) and every other version of the file
@@ -601,7 +612,12 @@ struct DropCounts {
     int reticle = 0;
     int n1 = 0;
     int n2 = 0;
+    int n3 = 0;
 };
+
+bool IsModifierCode(int vk) {
+    return (vk >= 0x10 && vk <= 0x12) || (vk >= 0xA0 && vk <= 0xA5);
+}
 
 // The import's reading with the approved changes applied, each checked against what the import
 // recorded: every sensitivity and inversion listed in its place, and dropped exactly where it is
@@ -664,6 +680,7 @@ Reading Expected(const std::string& name, Reading g, const legacy::Config& c, co
         const char* key;
     };
     bool anyN1 = false;
+    bool anyN3 = false;
     for (const Hotkey& h : {Hotkey{Action::Toggle, c.toggleKey, "ToggleKey"},
                             Hotkey{Action::CycleMode, c.trackingModeKey, "TrackingModeKey"},
                             Hotkey{Action::YawMode, c.yawModeKey, "YawModeKey"}}) {
@@ -671,13 +688,19 @@ Reading Expected(const std::string& name, Reading g, const legacy::Config& c, co
         if (outOfRange != (FindDrop(result.dropped, cfg::DropRule::KeyCodeOutOfRange, "Hotkeys", h.key) != nullptr)) {
             Fail(name, std::string("[Hotkeys] ") + h.key + " dropped as out of range does not match its code");
         }
-        if (!outOfRange) continue;
-        anyN1 = true;
+        const bool modifier = IsModifierCode(h.vk);
+        if (modifier != (FindDrop(result.dropped, cfg::DropRule::ModifierKey, "Hotkeys", h.key) != nullptr)) {
+            Fail(name, std::string("[Hotkeys] ") + h.key + " dropped as a modifier key does not match its code");
+        }
+        if (!outOfRange && !modifier) continue;
+        anyN1 = anyN1 || outOfRange;
+        anyN3 = anyN3 || modifier;
         g.hotkeys.erase(std::remove_if(g.hotkeys.begin(), g.hotkeys.end(),
                                        [&h](const Registration& r) { return r.action == h.action && r.modifiers == kNav; }),
                         g.hotkeys.end());
     }
     if (anyN1) ++counts.n1;
+    if (anyN3) ++counts.n3;
 
     const Config defaults;
     struct Limit {
@@ -703,10 +726,107 @@ Reading Expected(const std::string& name, Reading g, const legacy::Config& c, co
 
     for (const cfg::DroppedValue& d : result.dropped) {
         const bool approved = d.rule == cfg::DropRule::PoseShaping || d.rule == cfg::DropRule::Reticle ||
-                              d.rule == cfg::DropRule::KeyCodeOutOfRange || d.rule == cfg::DropRule::NonFiniteNumber;
+                              d.rule == cfg::DropRule::KeyCodeOutOfRange || d.rule == cfg::DropRule::ModifierKey ||
+                              d.rule == cfg::DropRule::NonFiniteNumber;
         if (!approved) Fail(name, "the import drops [" + d.section + "] " + d.key + " by a rule this map never applies");
     }
     return g;
+}
+
+// ---------------------------------------------------------------------------
+// Rows that follow Defaults.ini
+// ---------------------------------------------------------------------------
+
+using Concept = cfg::schema::Concept;
+
+// The row a record entry observes, or none for what the canonical format has no row for. The
+// mode stands for the tracking mode pair.
+std::optional<Concept> RowOf(const std::string& entry) {
+    static const std::map<std::string, Concept> rows = {
+        {"port", Concept::UdpPort},
+        {"start.enabled", Concept::EnableOnStartup},
+        {"start.world_yaw", Concept::WorldSpaceYaw},
+        {"start.mode", Concept::RotationEnabled},
+        {"smoothing.local", Concept::LocalSmoothing},
+        {"smoothing.remote", Concept::RemoteSmoothing},
+        {"pos.limit_x", Concept::PositionLimitX},
+        {"pos.limit_y", Concept::PositionLimitY},
+        {"pos.limit_y_down", Concept::PositionLimitYDown},
+        {"pos.limit_z", Concept::PositionLimitZ},
+        {"pos.limit_z_back", Concept::PositionLimitZBack},
+        {"hotkey.toggle", Concept::ToggleKey},
+        {"hotkey.cycle mode", Concept::CycleTrackingModeKey},
+        {"hotkey.yaw mode", Concept::YawModeKey},
+    };
+    const auto it = rows.find(entry);
+    if (it != rows.end()) return it->second;
+    static const std::set<std::string> none = {
+        "rot.yaw_sensitivity", "rot.pitch_sensitivity", "rot.roll_sensitivity", "pos.sensitivity_x",
+        "pos.sensitivity_y",   "pos.sensitivity_z",     "pos.invert_x",         "pos.invert_y",
+        "pos.invert_z",        "start.reticle_shown",   "notifications",        "hotkey.reticle",
+    };
+    if (none.count(entry)) return std::nullopt;
+    throw std::logic_error("no row observes " + entry);
+}
+
+// Every row the table binds, each of which follows Defaults.ini.
+const std::set<Concept>& AllRows() {
+    static const std::set<Concept> all = {
+        Concept::UdpPort,           Concept::EnableOnStartup,      Concept::WorldSpaceYaw,
+        Concept::RotationEnabled,   Concept::PositionEnabled,      Concept::LocalSmoothing,
+        Concept::RemoteSmoothing,   Concept::PositionLimitX,       Concept::PositionLimitY,
+        Concept::PositionLimitYDown, Concept::PositionLimitZ,      Concept::PositionLimitZBack,
+        Concept::ToggleKey,         Concept::CycleTrackingModeKey, Concept::YawModeKey,
+    };
+    return all;
+}
+
+// The rows with an entry that differs between two records, the mode pair as one unit.
+std::set<Concept> RowsThatDiffer(const Record& a, const Record& b) {
+    std::set<Concept> rows;
+    for (const auto& [entry, value] : a) {
+        const std::optional<Concept> row = RowOf(entry);
+        if (row && b.at(entry) != value) rows.insert(*row);
+    }
+    if (rows.count(Concept::RotationEnabled)) rows.insert(Concept::PositionEnabled);
+    return rows;
+}
+
+// The rows the player never changed: every entry of the row reads as a file holding only the
+// frozen defaults does.
+std::set<Concept> UntouchedRows(const Record& imported) {
+    static const Record defaults = Observe(FromImport(legacy::ReadStatus::Read, legacy::Config{}));
+    const std::set<Concept> changed = RowsThatDiffer(imported, defaults);
+    std::set<Concept> untouched;
+    for (const Concept row : AllRows()) {
+        if (!changed.count(row)) untouched.insert(row);
+    }
+    return untouched;
+}
+
+std::string RowNames(const std::set<Concept>& rows) {
+    std::string text;
+    for (const Concept row : rows) {
+        text += (text.empty() ? "" : ", ") + std::string(cfg::schema::kConcepts[static_cast<std::size_t>(row)].name);
+    }
+    return text.empty() ? "none" : text;
+}
+
+// What the session runs on over another Defaults.ini: `want`, with each row the import left to
+// Defaults.ini as that file gives it.
+Record OverDefaults(Record want, const std::set<Concept>& follows, const Record& defaults_ini) {
+    for (auto& [entry, value] : want) {
+        const std::optional<Concept> row = RowOf(entry);
+        if (row && follows.count(*row)) value = defaults_ini.at(entry);
+    }
+    return want;
+}
+
+// Every file a build wrote or the repo kept unedited, and the empty file: none holds a value
+// v1.4.0 did not default to, so every row follows Defaults.ini.
+bool IsUnedited(const std::string& name) {
+    return name.rfind("shipped-", 0) == 0 || name.rfind("first-run-", 0) == 0 || name.rfind("committed-", 0) == 0 ||
+           name == "empty file";
 }
 
 struct MigrationTally {
@@ -714,7 +834,12 @@ struct MigrationTally {
     std::set<std::string> migrated;
     int created = 0;
     int converted = 0;
+    int touched = 0;
+    int mode_touched = 0;
     DropCounts drops;
+    // The settings a first launch runs on over the built-in and over the skewed Defaults.ini.
+    Record builtin;
+    Record skewed;
 };
 
 // Every row's value, whatever Defaults.ini holds, so two Configs compare in full.
@@ -818,9 +943,27 @@ void MigrateInput(const Folders& f, const Input& input, const ImportRun& i, cons
     }
 
     ++tally.converted;
+    const std::set<Concept> follows(result->follows_defaults_ini.begin(), result->follows_defaults_ini.end());
+    if (follows.size() != result->follows_defaults_ini.size()) Fail(input.name, "follows_defaults_ini names a row twice");
+    const std::set<Concept> untouched = UntouchedRows(Observe(FromImport(i.status, i.cfg)));
+    if (follows != untouched) {
+        Fail(input.name, "the rows left to Defaults.ini are " + RowNames(follows) + ", the rows the player never changed " +
+                             RowNames(untouched));
+    }
+    if (untouched != AllRows()) ++tally.touched;
+    if (!untouched.count(Concept::RotationEnabled)) ++tally.mode_touched;
+    if (IsUnedited(input.name)) {
+        if (untouched != AllRows()) Fail(input.name, "an unedited file leaves " + RowNames(untouched) + " to Defaults.ini");
+        if (ReadBytes(f.migration + L"\\" + kCanonicalName) != tally.committed) {
+            Fail(input.name, "an unedited file does not migrate to HeadTracking.ini as committed");
+        }
+    }
+
     const Record want = Observe(Expected(input.name, FromImport(i.status, i.cfg), i.cfg, *result, tally.drops));
-    for (const std::string& d : Differences(want, Observe(FromMigration(*migrated)))) {
-        Fail(input.name, "comparison 2: " + d + " (the import with the approved changes / the migration)");
+    for (const std::string& d : Differences(OverDefaults(want, follows, tally.builtin), Observe(FromMigration(*migrated)))) {
+        Fail(input.name, "comparison 2: " + d +
+                             " (the import with the approved changes, the untouched rows at the built-in values / "
+                             "the migration)");
     }
 
     EmptyFolder(f.read_only);
@@ -838,8 +981,18 @@ void MigrateInput(const Folders& f, const Input& input, const ImportRun& i, cons
     EmptyFolder(f.skewed);
     WriteBytes(f.skewed + L"\\" + kIniName, *input.bytes);
     const std::optional<Config> overSkewed = Migrate(f.skewed, f.skewed_defaults, input.name + " (skewed Defaults.ini)", tally);
-    if (overSkewed && Values(*overSkewed) != Values(*migrated)) {
-        Fail(input.name, "the migration gives other settings over a Defaults.ini that differs on every global row");
+    if (!overSkewed) return;
+    for (const std::string& d :
+         Differences(OverDefaults(want, follows, tally.skewed), Observe(FromMigration(*overSkewed)))) {
+        Fail(input.name, "over the skewed Defaults.ini: " + d +
+                             " (the untouched rows at its values and the changed rows at the import's / the migration)");
+    }
+    const std::string written = ReadBytes(f.skewed + L"\\" + kCanonicalName);
+    for (const Concept row : follows) {
+        const std::string key = cfg::schema::kConcepts[static_cast<std::size_t>(row)].key;
+        if (written.find("\r\n" + key + "=default\r\n") == std::string::npos) {
+            Fail(input.name, "over the skewed Defaults.ini, " + key + " is not written default");
+        }
     }
 }
 
@@ -1011,6 +1164,17 @@ int main() {
         WriteBytes(folders.skewed_defaults, kSkewedDefaults);
         MigrationTally tally;
         tally.committed = ReadBytes(Widen(DL2_COMMITTED_CONFIG));
+        {
+            EmptyFolder(folders.skewed);
+            const std::optional<Config> fresh =
+                Migrate(folders.skewed, folders.skewed_defaults, "no file (skewed Defaults.ini)", tally);
+            if (!fresh) throw std::logic_error("a first launch over the skewed Defaults.ini did not load");
+            tally.skewed = Observe(FromMigration(*fresh));
+            tally.builtin = Observe(FromMigration(DL2HT::MakeConfigTable().defaults()));
+            if (RowsThatDiffer(tally.skewed, tally.builtin) != AllRows()) {
+                Fail("skewed Defaults.ini", "it does not differ from the built-in values on every row");
+            }
+        }
 
         TestFrozenDefaults();
         TestRegistrationModel();
@@ -1064,10 +1228,17 @@ int main() {
         std::printf("  %d with the reticle switch or key dropped (reticle)\n", tally.drops.reticle);
         std::printf("  %d with a hotkey code outside 0x01-0xFE unbound (N1)\n", tally.drops.n1);
         std::printf("  %d with a position limit that is not a number at its default (N2)\n", tally.drops.n2);
+        std::printf("  %d with a hotkey on Ctrl, Shift or Alt alone unbound (N3)\n", tally.drops.n3);
+        std::printf("  %d changing a row from v1.4.0's default, %d of them the tracking mode\n", tally.touched,
+                    tally.mode_touched);
         if (tally.drops.pose_shaping == 0) Fail("pose shaping", "no input drops a changed value");
         if (tally.drops.reticle == 0) Fail("reticle", "no input drops a reticle setting");
         if (tally.drops.n1 == 0) Fail("N1", "no input unbinds a hotkey code");
         if (tally.drops.n2 == 0) Fail("N2", "no input takes a limit that is not a number to its default");
+        if (tally.drops.n3 == 0) Fail("N3", "no input unbinds a hotkey on a modifier key");
+        if (tally.touched == 0 || tally.mode_touched == 0) {
+            Fail("follows Defaults.ini", "no input changes a row, or none the tracking mode");
+        }
         if (tally.migrated.count(tally.committed) == 0) Fail("first run", "no input migrated to the committed file");
 
         wchar_t exe[MAX_PATH];

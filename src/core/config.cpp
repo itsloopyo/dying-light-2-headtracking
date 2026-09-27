@@ -105,8 +105,30 @@ cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
 
     out.show_notifications = c.showNotifications;
 
-    return status == legacy::ReadStatus::Absent ? cfg::ImportResult::Absent(std::move(dropped), std::move(shaping))
-                                                : cfg::ImportResult::Imported(std::move(dropped), std::move(shaping));
+    // A setting the player never changed from v1.4.0's default follows Defaults.ini. v1.4.0 wrote
+    // WorldLockedYaw=false at first launch, the frozen default; the world-locked yaw set above for
+    // a start with no file is no player's choice either. LimitY stood for both vertical bounds.
+    using C = cfg::schema::Concept;
+    const bool absent = status == legacy::ReadStatus::Absent;
+    const legacy::Config shipped;
+    cfg::LegacyFollowsDefaultsIni follows;
+    follows.Setting(C::UdpPort, c.udpPort, shipped.udpPort);
+    follows.Setting(C::EnableOnStartup, c.autoEnable, shipped.autoEnable);
+    follows.Setting(C::WorldSpaceYaw, absent || c.worldLockedYaw == shipped.worldLockedYaw);
+    follows.TrackingMode(c.positionEnabled, shipped.positionEnabled);
+    follows.Setting(C::LocalSmoothing, c.localSmoothing, shipped.localSmoothing);
+    follows.Setting(C::RemoteSmoothing, c.remoteSmoothing, shipped.remoteSmoothing);
+    follows.Setting(C::PositionLimitX, c.positionLimitX, shipped.positionLimitX);
+    follows.Setting(C::PositionLimitY, c.positionLimitY, shipped.positionLimitY);
+    follows.Setting(C::PositionLimitYDown, c.positionLimitY, shipped.positionLimitY);
+    follows.Setting(C::PositionLimitZ, c.positionLimitZ, shipped.positionLimitZ);
+    follows.Setting(C::PositionLimitZBack, c.positionLimitZBack, shipped.positionLimitZBack);
+    follows.Setting(C::ToggleKey, c.toggleKey, shipped.toggleKey);
+    follows.Setting(C::CycleTrackingModeKey, c.trackingModeKey, shipped.trackingModeKey);
+    follows.Setting(C::YawModeKey, c.yawModeKey, shipped.yawModeKey);
+
+    return absent ? cfg::ImportResult::Absent(std::move(dropped), std::move(shaping), follows.Concepts())
+                  : cfg::ImportResult::Imported(std::move(dropped), std::move(shaping), follows.Concepts());
 }
 
 } // namespace
