@@ -2,14 +2,9 @@
 
 ![Dying Light 2 Stay Human running with this mod](https://raw.githubusercontent.com/itsloopyo/dying-light-2-headtracking/main/assets/readme-clip.gif)
 
-An unofficial head tracking mod for Dying Light 2 Stay Human that moves the view with your head while your mouse or controller keeps aiming, driven by OpenTrack over UDP, with no VR headset required.
+An unofficial head tracking mod for Dying Light 2 Stay Human that moves the view with your head while your mouse or controller keeps aiming, driven by a webcam, phone, or any OpenTrack compatible tracker, with no VR headset required.
 
 Lean into a window frame while your crosshair stays on the zombie you were already aiming at. Glance down at a rooftop gap mid-parkour without your jump going with your eyes. Your head drives the camera; the mouse still drives the aim.
-
-**Updating from an earlier version?** Settings now live in `CameraUnlock.ini`
-in `ph/work/bin/x64`, next to the mod. The first start of this version reads
-your settings from `HeadTracking.ini` into it and leaves `HeadTracking.ini` as
-it was. See [Configuration](#configuration).
 
 ## Features
 
@@ -155,8 +150,7 @@ The tracking mode and the yaw mode are saved to `CameraUnlock.ini` when you
 change them, and the game starts in them next time. `End` changes the current
 session only: head tracking starts on or off as `EnableOnStartup` says.
 
-While head tracking is on, the mod draws a dot where your aim points. There is
-no longer a key or setting that hides it.
+While head tracking is on, the mod draws a dot where your aim points.
 
 ## Configuration
 
@@ -264,14 +258,6 @@ CycleTrackingModeKey=default
 YawModeKey=default
 ```
 <!-- /cameraunlock:config -->
-
-Earlier versions also read these settings, which this version no longer
-reads: `YawMultiplier`, `PitchMultiplier` and `RollMultiplier` under
-`[Sensitivity]`, `SensitivityX`, `SensitivityY`, `SensitivityZ`, `InvertX`,
-`InvertY` and `InvertZ` under `[Position]`, `[Reticle] Enabled` and
-`[Hotkeys] ReticleToggleKey`. A lean still moves the view twice as far as your
-head moves, as the shipped `SensitivityX/Y/Z=2.0` did, and the aim dot is drawn
-whenever head tracking is on.
 
 The mod applies the head pose as your tracker sends it. Set sensitivity,
 response curves and axis inversion in your tracker, so the same profile works
@@ -446,7 +432,3 @@ the property of Techland, used here only to describe what this mod works with.
 It requires a legitimately purchased copy of the game. It contains no game code,
 no extracted assets and no data files, and it touches no DRM or licence check.
 It is single-player only and confers no multiplayer advantage.
-
-The clip at the top is a short capture of ordinary gameplay, recorded to show
-what the mod does. It remains Techland's copyright, ships in neither release
-ZIP, and will be removed on request.
