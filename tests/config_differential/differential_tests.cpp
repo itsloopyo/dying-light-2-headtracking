@@ -781,19 +781,27 @@ const std::set<Concept>& AllRows() {
     return all;
 }
 
-// The rows with an entry that differs between two records, the mode pair as one unit.
+// A float entry whose bits are a NaN or an infinity.
+bool NonFinite(const std::string& value) {
+    if (value.rfind("0x", 0) != 0 || value.size() != 10) return false;
+    const uint32_t bits = static_cast<uint32_t>(std::stoul(value, nullptr, 16));
+    return (bits & 0x7F800000u) == 0x7F800000u;
+}
+
+// The rows with an entry that differs between two records, the mode pair as one unit. A value
+// that is not finite is no change: the import leaves that row to Defaults.ini (N2).
 std::set<Concept> RowsThatDiffer(const Record& a, const Record& b) {
     std::set<Concept> rows;
     for (const auto& [entry, value] : a) {
         const std::optional<Concept> row = RowOf(entry);
-        if (row && b.at(entry) != value) rows.insert(*row);
+        if (row && b.at(entry) != value && !NonFinite(value)) rows.insert(*row);
     }
     if (rows.count(Concept::RotationEnabled)) rows.insert(Concept::PositionEnabled);
     return rows;
 }
 
 // The rows the player never changed: every entry of the row reads as a file holding only the
-// frozen defaults does.
+// frozen defaults does, or holds a number that is not finite.
 std::set<Concept> UntouchedRows(const Record& imported) {
     static const Record defaults = Observe(FromImport(legacy::ReadStatus::Read, legacy::Config{}));
     const std::set<Concept> changed = RowsThatDiffer(imported, defaults);
