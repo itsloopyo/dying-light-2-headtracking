@@ -1,12 +1,5 @@
 # Changelog
 
-## [1.4.0] - 2026-08-20
-
-### Added
-
-- drop mod-side recentring, split smoothing into local and remote
-- remove the splash skipper and its SkipSplash config option
-
 ## [Unreleased]
 
 ### Added
@@ -28,6 +21,23 @@
 - When the mod starts and finds no `Defaults.ini`, it creates one holding the
   built-in values, unless Windows runs the game as a packaged app. The mod never
   changes `Defaults.ini` after that.
+- Head tracking carries on while you aim down the sights of a firearm. By
+  default leaning eases out while the sights are up, so it never takes your eye
+  off them, and comes back when you lower them. The mod reads the sights from
+  the game's own firearm state, not from the aim button.
+- True free look, `[Position] TrueFreeLook` in `CameraUnlock.ini`, off by
+  default: leaning stays on while you aim, so the weapon stays put and your
+  head moves around it. `Insert` or `Ctrl+Shift+U` (`[Hotkeys]
+  TrueFreeLookKey`) switches it in game, and the mod saves the new value to
+  `CameraUnlock.ini` straight away, so it comes back at the next start. The
+  game also opens its skills menu on `Ctrl+Shift+U`.
+- Head movement is scaled to the game's zoom, so a narrower view does not
+  magnify it: yaw, pitch and leaning are scaled, roll is not.
+- The mod finds the sights and the zoom in the game's code when it starts. If a
+  game update has moved either, `HeadTracking.log` says which, and the mod runs
+  on without it: without the sights, leaning does not ease out while you aim;
+  without the zoom, head movement is not scaled to it and the sights are not
+  read either.
 
 ### Changed
 
@@ -92,6 +102,41 @@
   - A value continued on an indented line ends at a `;` comment on that line,
     so a continued `true ; note` reads as true. v1.4.0 read it as false
     (b993f62, the r58 release of inih).
+- Where `HeadTracking.ini` put the toggle, the tracking mode or the yaw mode
+  key on Insert, that hotkey keeps Insert, and `TrueFreeLookKey` is written as
+  `Ctrl+Shift+U` alone, so Insert does only what it did before. Otherwise
+  `TrueFreeLookKey` is written as `default`.
+- World-locked yaw is now the default: `WorldSpaceYaw` is `true` unless
+  `Defaults.ini` says otherwise. Page Down or Ctrl+Shift+H switches it in game,
+  and the mod saves it.
+- `WorldLockedYaw=false`, camera-local yaw, is the default every version up to
+  v1.4.0 wrote into `HeadTracking.ini`, so a file that holds it, or does not
+  hold the key, imports as `WorldSpaceYaw=default` and starts in world-locked
+  yaw, or in the yaw `Defaults.ini` gives. A file set to world-locked yaw keeps
+  it. Press Page Down in game to go back to camera-local yaw; the mod saves it.
+
+### Removed
+
+- The key that toggled the reticle, and the reticle setting `[Reticle]
+  Enabled`. The mod's aim dot is drawn whenever head tracking is on. `Insert`
+  and `Ctrl+Shift+U` switch true free look instead.
+- The sensitivity and axis inversion settings: `YawMultiplier`,
+  `PitchMultiplier` and `RollMultiplier` under `[Sensitivity]`, and
+  `SensitivityX`, `SensitivityY`, `SensitivityZ`, `InvertX`, `InvertY` and
+  `InvertZ` under `[Position]`. Set these in your tracker app instead.
+- With these settings at their shipped defaults the camera moves as it did
+  before: every release shipped the rotation multipliers at 1.0, the position
+  sensitivities at 2.0 and the inversions off, and the mod applies a lean at
+  twice the head's movement itself now.
+
+## [1.4.0] - 2026-08-20
+
+### Added
+
+- drop mod-side recentring, split smoothing into local and remote
+- remove the splash skipper and its SkipSplash config option
+
+### Changed
 
 - Removed mod-side recentring. The `Home` key, the `Ctrl+Shift+T` chord and the
   `[Hotkeys] RecenterKey` INI entry are gone, and the mod now applies the
@@ -113,28 +158,6 @@
 - Removed the `[Position] Smoothing` key and the hidden 0.15 baseline floor.
   The two new keys cover rotation and position, so local users get
   zero-latency tracking by default.
-- World-locked yaw is now the default for new installs (`[Rotation]
-  WorldLockedYaw=true`), matching the other head-tracking mods. Page Down
-  switches it in game.
-- `WorldLockedYaw=false`, camera-local yaw, is the default every version up to
-  v1.4.0 wrote into `HeadTracking.ini`, so a file that holds it, or does not
-  hold the key, imports as `WorldSpaceYaw=default` and starts in world-locked
-  yaw, or in the yaw `Defaults.ini` gives. A file set to world-locked yaw keeps
-  it. Press Page Down in game to go back to camera-local yaw; the mod saves it.
-
-### Removed
-
-- The key that toggled the reticle (`Insert`, `Ctrl+Shift+U`), and the reticle
-  setting `[Reticle] Enabled`. The mod's aim dot is drawn whenever head
-  tracking is on.
-- The sensitivity and axis inversion settings: `YawMultiplier`,
-  `PitchMultiplier` and `RollMultiplier` under `[Sensitivity]`, and
-  `SensitivityX`, `SensitivityY`, `SensitivityZ`, `InvertX`, `InvertY` and
-  `InvertZ` under `[Position]`. Set these in your tracker app instead.
-- With these settings at their shipped defaults the camera moves as it did
-  before: every release shipped the rotation multipliers at 1.0, the position
-  sensitivities at 2.0 and the inversions off, and the mod applies a lean at
-  twice the head's movement itself now.
 
 ### Fixed
 
