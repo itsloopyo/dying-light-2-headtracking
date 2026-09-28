@@ -57,6 +57,9 @@
   that start.
 - `RotationEnabled` and `PositionEnabled` are one setting here, the tracking
   mode, so both are written as `default` or neither is.
+- A number in `HeadTracking.ini` that is not a number the mod can use (`nan`,
+  `inf`) is written as `default` where the defaults the README shows set that
+  setting to `default`, and as the built-in value elsewhere.
 - Comments, and keys the mod never read, are not carried over. Nor are these,
   where your old file had them:
   - A sensitivity, scale, deadzone, response curve or axis inversion you
