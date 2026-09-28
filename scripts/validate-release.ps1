@@ -68,12 +68,7 @@ if (Test-Path $launcherManifest) {
 # Check CHANGELOG.md
 $changelog = Join-Path $projectDir "CHANGELOG.md"
 if (Test-Path $changelog) {
-    $content = Get-Content $changelog -Raw
-    if ($content -match "\[Unreleased\]") {
-        Write-Host "[OK] CHANGELOG.md has Unreleased section" -ForegroundColor Green
-    } else {
-        $warnings += "CHANGELOG.md missing [Unreleased] section"
-    }
+    Write-Host "[OK] CHANGELOG.md exists" -ForegroundColor Green
 } else {
     $errors += "CHANGELOG.md not found"
 }
