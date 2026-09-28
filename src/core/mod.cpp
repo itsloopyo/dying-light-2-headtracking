@@ -30,6 +30,7 @@ bool Mod::Initialize() {
 
     // Initialize yaw rotation frame from config
     m_worldLockedYaw.store(m_config.world_space_yaw);
+    m_trueFreeLook.store(m_config.true_free_look);
 
     m_session.SetMode(StartupTrackingMode(m_config));
     cameraunlock::PositionSettings posSettings = m_config.position;
@@ -98,10 +99,12 @@ bool Mod::Initialize() {
 
     // Every binding, not just the toggle: the log is the only place a player can read back what
     // this build is bound to.
-    Logger::Instance().Info("Hotkeys: toggle=[%s] cycle tracking mode=[%s] yaw mode=[%s]",
+    Logger::Instance().Info("Hotkeys: toggle=[%s] cycle tracking mode=[%s] yaw mode=[%s] true free look=[%s]",
                             m_config.toggle_key_name.c_str(),
                             m_config.cycle_tracking_mode_key_name.c_str(),
-                            m_config.yaw_mode_key_name.c_str());
+                            m_config.yaw_mode_key_name.c_str(),
+                            m_config.true_free_look_key_name.c_str());
+    Logger::Instance().Info("True free look: %s", m_trueFreeLook.load() ? "ON" : "OFF (sights locked)");
 
     // Show startup notification if enabled
     if (m_config.show_notifications) {
@@ -298,6 +301,18 @@ void Mod::ToggleYawMode() {
         ShowNotification(nowWorldLocked ? "Yaw Mode: World-Locked" : "Yaw Mode: Camera-Local");
     }
     SaveToggle([nowWorldLocked](Config& c) { c.world_space_yaw = nowWorldLocked; });
+}
+
+void Mod::ToggleTrueFreeLook() {
+    const bool on = !m_trueFreeLook.load();
+    m_trueFreeLook.store(on);
+
+    const char* label = on ? "True free look: ON" : "True free look: OFF (sights locked)";
+    Logger::Instance().Info("%s", label);
+    if (m_config.show_notifications) {
+        ShowNotification(label);
+    }
+    SaveToggle([on](Config& c) { c.true_free_look = on; });
 }
 
 bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {

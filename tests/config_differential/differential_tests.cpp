@@ -17,7 +17,8 @@
 // shipped 1.0, a position sensitivity away from its shipped 2.0 and a position inversion that is
 // on are dropped (pose_shaping); the shipped values are what the mod now applies. [Reticle]
 // Enabled=false and the reticle key are dropped (reticle): the aim dot is drawn whenever head
-// tracking is on, and neither the key nor Ctrl+Shift+U toggles it. A hotkey code outside
+// tracking is on, and neither the key nor Ctrl+Shift+U toggles it. Insert and Ctrl+Shift+U toggle
+// true free look instead, which no published build had and which starts off. A hotkey code outside
 // 0x01-0xFE imports as unbound (N1), as does a code on Ctrl, Shift or Alt alone (N3), each keeping
 // its Ctrl+Shift chord, and a position limit that is not a number imports as its default (N2).
 // The reader keeps every other value inside a range the canonical rows hold, so no input is
@@ -201,7 +202,7 @@ const wchar_t kCanonicalName[] = L"CameraUnlock.ini";
 // What a reading does
 // ---------------------------------------------------------------------------
 
-enum class Action { Toggle, CycleMode, YawMode, Reticle };
+enum class Action { Toggle, CycleMode, YawMode, Reticle, TrueFreeLook };
 
 const char* ActionName(Action a) {
     switch (a) {
@@ -209,6 +210,7 @@ const char* ActionName(Action a) {
         case Action::CycleMode: return "cycle mode";
         case Action::YawMode: return "yaw mode";
         case Action::Reticle: return "reticle";
+        case Action::TrueFreeLook: return "true free look";
     }
     throw std::logic_error("action");
 }
@@ -260,6 +262,7 @@ struct Reading {
     bool invert_x = false, invert_y = false, invert_z = false;
     float local_smoothing = 0, remote_smoothing = 0;
     bool reticle_shown = false;
+    bool true_free_look = false;
     bool show_notifications = false;
     std::vector<Registration> hotkeys;
 };
@@ -278,7 +281,9 @@ std::string Flag(bool value) { return value ? "1" : "0"; }
 // above 0xFF or below 0 down; 0xFF it can.
 void AddHotkeys(Record& r, const std::vector<Registration>& registrations) {
     std::map<Action, std::vector<std::pair<unsigned, int>>> byAction;
-    for (Action a : {Action::Toggle, Action::CycleMode, Action::YawMode, Action::Reticle}) byAction[a];
+    for (Action a : {Action::Toggle, Action::CycleMode, Action::YawMode, Action::Reticle, Action::TrueFreeLook}) {
+        byAction[a];
+    }
     for (const Registration& reg : registrations) {
         if (reg.vk < 0x01 || reg.vk > 0xFF) continue;
         byAction[reg.action].push_back({reg.modifiers, reg.vk});
@@ -322,6 +327,7 @@ Record Observe(const Reading& g) {
     r["smoothing.local"] = Hex(Bits(g.local_smoothing));
     r["smoothing.remote"] = Hex(Bits(g.remote_smoothing));
     r["start.reticle_shown"] = Flag(g.reticle_shown);
+    r["start.true_free_look"] = Flag(g.true_free_look);
     r["notifications"] = Flag(g.show_notifications);
     AddHotkeys(r, g.hotkeys);
     return r;
@@ -573,11 +579,13 @@ Reading FromMigration(const Config& c) {
     g.local_smoothing = c.local_smoothing;
     g.remote_smoothing = c.remote_smoothing;
     g.reticle_shown = true;
+    g.true_free_look = c.true_free_look;
     g.show_notifications = c.show_notifications;
     const std::pair<Action, const std::string*> lists[] = {
         {Action::Toggle, &c.toggle_key_name},
         {Action::CycleMode, &c.cycle_tracking_mode_key_name},
         {Action::YawMode, &c.yaw_mode_key_name},
+        {Action::TrueFreeLook, &c.true_free_look_key_name},
     };
     for (const auto& [action, list] : lists) {
         const cameraunlock::input::KeyBindingsParseResult parsed = cameraunlock::input::ParseKeyBindings(*list);
@@ -589,13 +597,17 @@ Reading FromMigration(const Config& c) {
     return g;
 }
 
-// The reticle key and Ctrl+Shift+U are gone for every player, a file or none (reticle): the aim
-// dot is drawn whenever head tracking is on.
-Reading WithoutReticleToggle(Reading g) {
+// The reticle key and its Ctrl+Shift+U are gone for every player, a file or none (reticle): the aim
+// dot is drawn whenever head tracking is on. Insert and Ctrl+Shift+U toggle true free look instead,
+// a setting no published build had, which starts off.
+Reading WithTodaysToggles(Reading g) {
     g.reticle_shown = true;
     g.hotkeys.erase(std::remove_if(g.hotkeys.begin(), g.hotkeys.end(),
                                    [](const Registration& r) { return r.action == Action::Reticle; }),
                     g.hotkeys.end());
+    g.true_free_look = false;
+    g.hotkeys.push_back({Action::TrueFreeLook, VK_INSERT, kNav});
+    g.hotkeys.push_back({Action::TrueFreeLook, 'U', kChord});
     return g;
 }
 
@@ -672,7 +684,7 @@ Reading Expected(const std::string& name, Reading g, const legacy::Config& c, co
         Fail(name, "[Hotkeys] ReticleToggleKey is dropped where no key was bound, or kept where one was");
     }
     if (reticleOff || reticleKeyBound) ++counts.reticle;
-    g = WithoutReticleToggle(g);
+    g = WithTodaysToggles(g);
 
     struct Hotkey {
         Action action;
@@ -757,6 +769,8 @@ std::optional<Concept> RowOf(const std::string& entry) {
         {"hotkey.toggle", Concept::ToggleKey},
         {"hotkey.cycle mode", Concept::CycleTrackingModeKey},
         {"hotkey.yaw mode", Concept::YawModeKey},
+        {"start.true_free_look", Concept::TrueFreeLook},
+        {"hotkey.true free look", Concept::TrueFreeLookKey},
     };
     const auto it = rows.find(entry);
     if (it != rows.end()) return it->second;
@@ -777,6 +791,7 @@ const std::set<Concept>& AllRows() {
         Concept::RemoteSmoothing,   Concept::PositionLimitX,       Concept::PositionLimitY,
         Concept::PositionLimitYDown, Concept::PositionLimitZ,      Concept::PositionLimitZBack,
         Concept::ToggleKey,         Concept::CycleTrackingModeKey, Concept::YawModeKey,
+        Concept::TrueFreeLook,      Concept::TrueFreeLookKey,
     };
     return all;
 }
@@ -861,8 +876,8 @@ const char kSkewedDefaults[] =
     "[General]\r\nEnableOnStartup=false\r\nWorldSpaceYaw=false\r\nRotationEnabled=false\r\n\r\n"
     "[Smoothing]\r\nLocalSmoothing=0.5\r\nRemoteSmoothing=0.5\r\n\r\n"
     "[Position]\r\nPositionEnabled=true\r\nPositionLimitX=0.5\r\nPositionLimitY=0.45\r\n"
-    "PositionLimitYDown=0.35\r\nPositionLimitZ=0.6\r\nPositionLimitZBack=0.25\r\n\r\n"
-    "[Hotkeys]\r\nToggleKey=F8\r\nCycleTrackingModeKey=F9\r\nYawModeKey=F10\r\n";
+    "PositionLimitYDown=0.35\r\nPositionLimitZ=0.6\r\nPositionLimitZBack=0.25\r\nTrueFreeLook=true\r\n\r\n"
+    "[Hotkeys]\r\nToggleKey=F8\r\nCycleTrackingModeKey=F9\r\nYawModeKey=F10\r\nTrueFreeLookKey=F11\r\n";
 
 cfg::ConfigOwnerOptions<Config> Options(const std::wstring& folder, const std::wstring& defaults) {
     return DL2HT::MakeConfigOwnerOptions(folder + L"\\", cfg::DefaultsFile::At(defaults));
@@ -944,8 +959,8 @@ void MigrateInput(const Folders& f, const Input& input, const ImportRun& i, cons
             Fail(input.name, "the created CameraUnlock.ini is not HeadTracking.ini as committed");
         }
         for (const std::string& d :
-             Differences(Observe(WithoutReticleToggle(FromImport(i.status, i.cfg))), Observe(FromMigration(*migrated)))) {
-            Fail(input.name, "comparison 2: " + d + " (the import without the reticle key / the migration)");
+             Differences(Observe(WithTodaysToggles(FromImport(i.status, i.cfg))), Observe(FromMigration(*migrated)))) {
+            Fail(input.name, "comparison 2: " + d + " (the import with today's toggles / the migration)");
         }
         return;
     }
@@ -1113,8 +1128,8 @@ void TestUnopenableFile(const Folders& f, const std::string& shipped) {
         Fail(input.name, std::string("the owner's load is ") + cfg::ConfigLoadStatusName(loaded->status) + ", not Deferred");
     }
     for (const std::string& d :
-         Differences(Observe(WithoutReticleToggle(FromImport(i.status, i.cfg))), Observe(FromMigration(loaded->config)))) {
-        Fail(input.name, "comparison 2: " + d + " (the import without the reticle key / the deferred session)");
+         Differences(Observe(WithTodaysToggles(FromImport(i.status, i.cfg))), Observe(FromMigration(loaded->config)))) {
+        Fail(input.name, "comparison 2: " + d + " (the import with today's toggles / the deferred session)");
     }
     if (Snapshot(f.migration) != std::map<std::wstring, std::string>{{kIniName, shipped}}) {
         Fail(input.name, "a deferred import left more than HeadTracking.ini as it was");

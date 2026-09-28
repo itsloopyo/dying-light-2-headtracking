@@ -24,6 +24,9 @@ public:
 
     void CycleTrackingMode();
     void ToggleYawMode();
+    void ToggleTrueFreeLook();
+
+    bool IsTrueFreeLook() const { return m_trueFreeLook.load(); }
 
     YawMode GetYawMode() const {
         return m_worldLockedYaw.load() ? YawMode::WorldLocked : YawMode::CameraLocal;
@@ -67,6 +70,9 @@ private:
 
     // Yaw rotation frame (PgDn / Ctrl+Shift+H toggles)
     std::atomic<bool> m_worldLockedYaw{false};
+
+    // The lean while aiming down the sights (Insert / Ctrl+Shift+U toggles)
+    std::atomic<bool> m_trueFreeLook{false};
 
     // Timing for frame-rate independent processing
     uint64_t m_lastProcessTime = 0;

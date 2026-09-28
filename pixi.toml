@@ -48,10 +48,10 @@ validate-release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/val
 # Manual; commit the result. CI does not run this.
 update-deps = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1" }
 
-# The config tests, the config differential test, which holds the frozen HeadTracking.ini reader
-# to v1.4.0's and the migration into CameraUnlock.ini to the frozen reader, core's canonical
-# config lint over every file that test migrated, and the check that the frozen files keep their
-# recorded hashes. Needs no game install.
+# The config tests, the aim pose tests, the config differential test, which holds the frozen
+# HeadTracking.ini reader to v1.4.0's and the migration into CameraUnlock.ini to the frozen reader,
+# core's canonical config lint over every file that test migrated, and the check that the frozen
+# files keep their recorded hashes. Needs no game install.
 test = { cmd = "ctest --test-dir build -C Release --output-on-failure", depends-on = ["build-release"] }
 
 # Rewrites HeadTracking.ini, the committed config and the table's fresh render (the

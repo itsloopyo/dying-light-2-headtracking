@@ -122,14 +122,20 @@ view sits off to one side, centre it in the tracker.
 
 Two equivalent binding sets - use whichever your keyboard has:
 
-| Action              | Nav-cluster | Chord          |
-|---------------------|-------------|----------------|
-| Toggle tracking     | `End`       | `Ctrl+Shift+Y` |
-| Cycle tracking mode | `Page Up`   | `Ctrl+Shift+G` |
-| Toggle yaw mode     | `Page Down` | `Ctrl+Shift+H` |
+| Action                | Nav-cluster | Chord          |
+|-----------------------|-------------|----------------|
+| Toggle tracking       | `End`       | `Ctrl+Shift+Y` |
+| Cycle tracking mode   | `Page Up`   | `Ctrl+Shift+G` |
+| Toggle yaw mode       | `Page Down` | `Ctrl+Shift+H` |
+| Toggle true free look | `Insert`    | `Ctrl+Shift+U` |
 
 Both keys of each action are one list in `CameraUnlock.ini` (`ToggleKey`,
-`CycleTrackingModeKey`, `YawModeKey`), so either can be rebound or removed.
+`CycleTrackingModeKey`, `YawModeKey`, `TrueFreeLookKey`), so either can be
+rebound or removed.
+
+Dying Light 2 opens the skills menu on `U` even with `Ctrl` and `Shift` held, so
+`Ctrl+Shift+U` opens it as well as toggling true free look. Use `Insert`, or put
+another key in `TrueFreeLookKey`.
 
 `Page Up` / `Ctrl+Shift+G` cycles tracking mode:
 
@@ -146,9 +152,26 @@ Both keys of each action are one list in `CameraUnlock.ini` (`ToggleKey`,
 - **Camera-local**: yaw rotates around your head's up axis. When you pitch
   the view down and yaw, the horizon tilts and the view sweeps a cone.
 
-The tracking mode and the yaw mode are saved to `CameraUnlock.ini` when you
-change them, and the game starts in them next time. `End` changes the current
-session only: head tracking starts on or off as `EnableOnStartup` says.
+### Aiming down sights
+
+Head tracking stays on while you aim. The weapon stays where your mouse or
+controller points it, so with your head turned it sits off to one side with its
+sights still lined up, and your rounds land where those sights point. Head
+movement is scaled to the zoom, so a scope does not magnify it.
+
+By default leaning never takes your eye off the sights. `Insert` /
+`Ctrl+Shift+U` switches to **true free look**: the weapon stays put and your
+head moves freely around it, so to see down the sights you have to put your head
+behind them, as you would in VR. It is hard, and it is off by default. The mod
+saves the mode you pick, so it holds the next time you start the game.
+
+Leaning eases out while the sights are up, because it would move your eye off
+them.
+
+The tracking mode, the yaw mode and true free look are saved to
+`CameraUnlock.ini` when you change them, and the game starts in them next time.
+`End` changes the current session only: head tracking starts on or off as
+`EnableOnStartup` says.
 
 While head tracking is on, the mod draws a dot where your aim points.
 
@@ -172,6 +195,7 @@ The built-in value of each setting set to `default` below:
 - `LocalSmoothing=0.0`
 - `RemoteSmoothing=0.15`
 - `PositionEnabled=true`
+- `TrueFreeLook=false`
 - `PositionLimitX=0.3`
 - `PositionLimitY=0.2`
 - `PositionLimitYDown=0.2`
@@ -180,6 +204,7 @@ The built-in value of each setting set to `default` below:
 - `ToggleKey=End, Ctrl+Shift+Y`
 - `CycleTrackingModeKey=PageUp, Ctrl+Shift+G`
 - `YawModeKey=PageDown, Ctrl+Shift+H`
+- `TrueFreeLookKey=Insert, Ctrl+Shift+U`
 
 With every setting at its default, the file reads:
 
@@ -224,6 +249,9 @@ RemoteSmoothing=default
 ; true: moving your head moves the view.
 ; Tracking mode at startup, with RotationEnabled. The mode hotkey changes both.
 PositionEnabled=default
+; false: while you aim down the sights, leaning keeps your eye on the sights.
+; true: the weapon stays put and your head moves freely around it (true free look).
+TrueFreeLook=default
 ; How far, in metres, leaning left or right can move the view.
 PositionLimitX=default
 ; How far, in metres, raising your head can move the view.
@@ -242,6 +270,8 @@ ToggleKey=default
 CycleTrackingModeKey=default
 ; Switches yaw between the world's up axis and the camera's own (WorldSpaceYaw).
 YawModeKey=default
+; Switches between keeping your eye on the sights and true free look (TrueFreeLook).
+TrueFreeLookKey=default
 ```
 <!-- /cameraunlock:config -->
 
@@ -262,6 +292,14 @@ across games.
 - Press `End` to enable tracking if auto-enable is off
 - If the view sits off to one side, centre it in your tracker app (opentrack's
   Center bind, or the CENTER button in a Headcam app)
+
+**The weapon is off to one side when I aim down sights.** Your head is
+turned: the weapon stays on your aim and you are looking past it. Turn back to
+it, or move your aim to where you are looking.
+
+**I can't see down the sights, they are misaligned.** You are in true free
+look and your head is leaned off them. Move your head back behind them, or
+press `Insert` / `Ctrl+Shift+U` to return to sights locked.
 
 **Camera jittering:**
 - Increase filtering in your tracker software
@@ -347,6 +385,7 @@ dying-light-2-headtracking/
 │   │   └── logger.cpp  # Logging
 │   ├── hooks/          # Game hooks
 │   │   ├── engine_camera_hook.cpp  # Camera manipulation
+│   │   ├── aim_state.cpp           # Aiming down sights and the zoom, from the game's own state
 │   │   ├── input_hook.cpp          # Hotkey handling
 │   │   ├── dx_hook.cpp             # DirectX overlay
 │   │   └── crosshair_hook.cpp      # Crosshair management
@@ -368,7 +407,7 @@ dying-light-2-headtracking/
 | `build-release` | Build release configuration |
 | `install` | Build release and install to game directory |
 | `uninstall` | Remove HeadTracking mod only |
-| `test` | Run the config tests |
+| `test` | Run the tests |
 | `render-config` | Rewrite the committed config after a change to the config table |
 | `detect-game` | Show detected game path |
 | `clean` | Clean build artifacts |

@@ -1,8 +1,9 @@
 // The settings file: the committed HeadTracking.ini is the table's fresh render, which a first
 // launch creates as CameraUnlock.ini, the defaults the builds before it ran on without a file map
 // to the table's defaults, the file v1.4.0 shipped imports into the committed file, every row
-// left to Defaults.ini, the toggles save only their own lines, End's row cannot be saved, and a row
-// holding default takes Defaults.ini's value. Every owner reads a scratch Defaults.ini.
+// left to Defaults.ini, the toggles save only their own lines, End's row cannot be saved, a row
+// holding default takes Defaults.ini's value, and an ads_mode line from any older mod turns nothing
+// on. Every owner reads a scratch Defaults.ini.
 //
 // `--render-config <path>` writes the committed file instead (pixi run render-config).
 
@@ -125,8 +126,8 @@ void TestCommittedConfigIsRendered() {
          {"UdpPort=default", "EnableOnStartup=default", "WorldSpaceYaw=default", "RotationEnabled=default",
           "LocalSmoothing=default", "RemoteSmoothing=default", "PositionEnabled=default", "PositionLimitX=default",
           "PositionLimitY=default", "PositionLimitYDown=default", "PositionLimitZ=default",
-          "PositionLimitZBack=default", "ToggleKey=default", "CycleTrackingModeKey=default", "YawModeKey=default",
-          "ShowNotifications=true"}) {
+          "PositionLimitZBack=default", "TrueFreeLook=default", "ToggleKey=default", "CycleTrackingModeKey=default",
+          "YawModeKey=default", "TrueFreeLookKey=default", "ShowNotifications=true"}) {
         Check(committed.find(std::string("\r\n") + line + "\r\n") != std::string::npos,
               std::string("the committed file holds ") + line);
     }
@@ -139,6 +140,8 @@ void TestDefaults() {
     Check(d.cycle_tracking_mode_key_name == "PageUp, Ctrl+Shift+G",
           "CycleTrackingModeKey defaults to PageUp, Ctrl+Shift+G");
     Check(d.yaw_mode_key_name == "PageDown, Ctrl+Shift+H", "YawModeKey defaults to PageDown, Ctrl+Shift+H");
+    Check(!d.true_free_look, "TrueFreeLook defaults to false, sights locked");
+    Check(d.true_free_look_key_name == "Insert, Ctrl+Shift+U", "TrueFreeLookKey defaults to Insert, Ctrl+Shift+U");
     Check(d.udp_port == 4242 && d.enable_on_startup && d.world_space_yaw && d.show_notifications,
           "port 4242, on at startup, world-locked yaw and notices logged");
     Check(StartupTrackingMode(d) == cameraunlock::TrackingMode::RotationAndPosition,
@@ -165,7 +168,7 @@ void TestLegacyDefaultsMapToTheDefaults() {
               result.dropped[0].key == "ReticleToggleKey" && result.dropped[0].value == "0x2D",
           "the old defaults drop only the reticle key, Insert");
     Check(result.pose_shaping.size() == 9, "every sensitivity and position inversion is recorded");
-    Check(result.follows_defaults_ini.size() == 15, "every one of the 15 rows follows Defaults.ini");
+    Check(result.follows_defaults_ini.size() == 17, "every one of the 17 rows follows Defaults.ini");
     for (const cfg::PoseShapingValue& value : result.pose_shaping) {
         Check(value.folded, "[" + value.section + "] " + value.key + " holds its shipped value and is folded");
     }
@@ -242,6 +245,12 @@ void TestTogglesSave() {
                   std::vector<std::string>{"RotationEnabled=false", "PositionEnabled=true"},
               "saving position only changes the mode pair and nothing else");
 
+        const std::string afterPositionOnly = ReadBytes(path);
+        Check(owner.Save([](Config& c) { c.true_free_look = true; }).status == cfg::ConfigSaveStatus::Saved,
+              "true free look saves");
+        Check(ChangedLines(afterPositionOnly, ReadBytes(path)) == std::vector<std::string>{"TrueFreeLook=true"},
+              "saving true free look writes its value over default and changes nothing else");
+
         bool refused = false;
         try {
             owner.Save([](Config& c) { c.enable_on_startup = false; });
@@ -257,8 +266,8 @@ void TestTogglesSave() {
     Check(again.status == cfg::ConfigLoadStatus::Canonical && again.diagnostics.empty() &&
               !again.config.world_space_yaw &&
               StartupTrackingMode(again.config) == cameraunlock::TrackingMode::PositionOnly &&
-              again.config.enable_on_startup,
-          "the saved yaw and tracking mode come back at the next start");
+              again.config.true_free_look && again.config.enable_on_startup,
+          "the saved yaw mode, tracking mode and true free look come back at the next start");
 
     RemoveScratchFolder(dir);
     RemoveScratchFolder(global);
@@ -292,6 +301,30 @@ void TestDefaultRowsFollowDefaultsIni() {
     RemoveScratchFolder(global);
 }
 
+// The retired aim-down-sights cycle's ads_mode is never true free look: its tracked slot kept the
+// lean, but it also paused, marked and re-centred. A canonical file that holds one loads with true
+// free look off and names the line; a HeadTracking.ini that holds one imports with it off.
+void TestAdsModeLoadsWithFreeLookOff() {
+    const std::wstring dir = ScratchFolder(L"adsmode");
+    const std::wstring global = ScratchFolder(L"adsmode-global");
+    const std::wstring defaults = global + L"Defaults.ini";
+    WriteBytes(dir + kConfigFileName,
+               Replace(Rendered(), "TrueFreeLook=default\r\n", "TrueFreeLook=default\r\nads_mode=tracked\r\n"));
+    const auto canonical = cfg::ConfigOwner<Config>(Options(dir, defaults)).Load();
+    Check(canonical.status == cfg::ConfigLoadStatus::Canonical, "a canonical file holding ads_mode loads");
+    Check(!canonical.config.true_free_look, "a canonical file holding ads_mode=tracked runs sights locked");
+    Check(!canonical.diagnostics.empty(), "the ads_mode line draws a diagnostic");
+    RemoveScratchFolder(dir);
+
+    const std::wstring legacyDir = ScratchFolder(L"adsmode-legacy");
+    WriteBytes(legacyDir + kLegacyFileName, "[General]\r\nads_mode=tracked\r\n");
+    const auto imported = cfg::ConfigOwner<Config>(Options(legacyDir, defaults)).Load();
+    Check(imported.status == cfg::ConfigLoadStatus::Migrated, "a HeadTracking.ini holding ads_mode imports");
+    Check(!imported.config.true_free_look, "a HeadTracking.ini holding ads_mode=tracked imports sights locked");
+    RemoveScratchFolder(legacyDir);
+    RemoveScratchFolder(global);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -313,6 +346,7 @@ int main(int argc, char** argv) {
         TestShippedFilesImportAsTheCommittedFile();
         TestTogglesSave();
         TestDefaultRowsFollowDefaultsIni();
+        TestAdsModeLoadsWithFreeLookOff();
     } catch (const std::exception& e) {
         std::printf("FAIL: %s\n", e.what());
         return 1;

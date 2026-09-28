@@ -39,6 +39,10 @@ static void RegisterHotkeys(const Config& config) {
         Logger::Instance().Debug("Yaw mode key pressed");
         Mod::Instance().ToggleYawMode();
     });
+    RegisterKeyBindings(g_poller, Parse(config.true_free_look_key_name), [] {
+        Logger::Instance().Debug("True free look key pressed");
+        Mod::Instance().ToggleTrueFreeLook();
+    });
 }
 
 bool InstallInputHook() {

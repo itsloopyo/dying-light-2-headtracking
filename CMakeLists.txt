@@ -55,6 +55,7 @@ set(MOD_SOURCES
     src/core/path_utils.cpp
     src/hooks/hook_manager.cpp
     src/hooks/engine_camera_hook.cpp
+    src/hooks/aim_state.cpp
     src/hooks/input_hook.cpp
     src/hooks/dx_hook.cpp
     src/hooks/crosshair_hook.cpp
@@ -106,9 +107,9 @@ if(WIN32)
     )
 endif()
 
-# The config tests. Separate executables linking none of the hook machinery, so `pixi run test`
+# The tests. Separate executables linking none of the hook machinery, so `pixi run test`
 # runs anywhere the mod builds, with no game installed.
-option(DL2HT_BUILD_TESTS "Build the config tests" ON)
+option(DL2HT_BUILD_TESTS "Build the tests" ON)
 if(DL2HT_BUILD_TESTS)
     enable_testing()
 
@@ -132,6 +133,12 @@ if(DL2HT_BUILD_TESTS)
         DL2_DIFFERENTIAL_INPUTS="${CMAKE_CURRENT_SOURCE_DIR}/tests/config_differential/inputs")
     target_link_libraries(dl2ht_config_tests PRIVATE cameraunlock)
     add_test(NAME config_tests COMMAND dl2ht_config_tests)
+
+    # Head tracking through the aim: the lean hand-over and the zoom scale the camera hook applies.
+    add_executable(dl2ht_aim_pose_tests tests/aim_pose_tests.cpp)
+    target_include_directories(dl2ht_aim_pose_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(dl2ht_aim_pose_tests PRIVATE cameraunlock)
+    add_test(NAME aim_pose_tests COMMAND dl2ht_aim_pose_tests)
 
     # The config differential test. The oracle is v1.4.0's reader, the newest published build,
     # copied byte for byte into tests/config_differential/oracle with the logger, path helpers

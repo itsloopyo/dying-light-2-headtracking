@@ -126,6 +126,9 @@ cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
     follows.Setting(C::ToggleKey, c.toggleKey, shipped.toggleKey);
     follows.Setting(C::CycleTrackingModeKey, c.trackingModeKey, shipped.trackingModeKey);
     follows.Setting(C::YawModeKey, c.yawModeKey, shipped.yawModeKey);
+    // No published build had true free look or its key.
+    follows.Setting(C::TrueFreeLook, true);
+    follows.Setting(C::TrueFreeLookKey, true);
 
     return absent ? cfg::ImportResult::Absent(std::move(dropped), std::move(shaping), follows.Concepts())
                   : cfg::ImportResult::Imported(std::move(dropped), std::move(shaping), follows.Concepts());
@@ -138,10 +141,12 @@ cfg::ConfigTable<Config> MakeConfigTable() {
     cfg::ConfigTable<Config> table = cfg::HeadTrackingConfigTable<Config>(
         {C::UdpPort, C::EnableOnStartup, C::WorldSpaceYaw, C::RotationEnabled, C::LocalSmoothing,
          C::RemoteSmoothing, C::PositionEnabled, C::PositionLimitX, C::PositionLimitY, C::PositionLimitYDown,
-         C::PositionLimitZ, C::PositionLimitZBack, C::ToggleKey, C::CycleTrackingModeKey, C::YawModeKey});
+         C::PositionLimitZ, C::PositionLimitZBack, C::TrueFreeLook, C::ToggleKey, C::CycleTrackingModeKey,
+         C::YawModeKey, C::TrueFreeLookKey});
     table.Select(C::WorldSpaceYaw).Writable()
         .Select(C::RotationEnabled).Writable()
-        .Select(C::PositionEnabled).Writable();
+        .Select(C::PositionEnabled).Writable()
+        .Select(C::TrueFreeLook).Writable();
     table.Local("General", "ShowNotifications", &Config::show_notifications, cfg::BoolCodec(),
                 "true: write the mod's notices (tracking on or off, a mode change) to HeadTracking.log.");
     return table;

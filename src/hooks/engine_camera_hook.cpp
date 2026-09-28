@@ -1,7 +1,9 @@
 #include "pch.h"
 #include "engine_camera_hook.h"
+#include "aim_state.h"
 #include "dx_hook.h"
 #include "hook_manager.h"
+#include "core/aim_pose.h"
 #include "core/mod.h"
 #include "core/logger.h"
 #include "core/rotation_math.h"
@@ -72,6 +74,14 @@ static CameraHookState g_hook;
 static TrackingState g_tracking;
 static GameplayStateCache g_gameplayCache;
 static GameStateDetection g_gameState;
+
+// Head tracking through the aim, and what the camera hook has already logged about it. Touched
+// only from the camera update.
+static AimPose g_aimPose;
+static bool g_zoomLogged = false;
+static float g_zoomLoggedFactor = 1.0f;
+static ULONGLONG g_zoomLoggedTick = 0;
+static bool g_wasAiming = false;
 
 // Initialize game state detection
 // Pattern: 48 8B 05 ?? ?? ?? ?? 48 85 C0 74 ?? 48 83 C0
@@ -280,8 +290,48 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         }
 
         if (skip) {
+            g_aimPose.Stop();
+            if (g_wasAiming) {
+                g_wasAiming = false;
+                Logger::Instance().Info("Sights down");
+            }
             ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
             return;
+        }
+    }
+
+    // Read after the gameplay gate, so a menu or a load reports its own reason and the game's
+    // camera and firearm state are only asked for in gameplay.
+    const FppCameraSample fpp = SampleFppCamera(thisCamera, GetLevelDI());
+    float zoomFactor = 1.0f;
+    if (fpp.fovKnown) zoomFactor = ZoomFactor(fpp.liveFovDeg, fpp.baseFovDeg);
+    if (fpp.aiming != g_wasAiming) {
+        g_wasAiming = fpp.aiming;
+        Logger::Instance().Info("Sights %s", fpp.aiming ? "up" : "down");
+    }
+
+    // Every term once, on the first gameplay frame whether or not a tracker is sending, then the
+    // factor again whenever it moves, at most once a second: the first gameplay frame can still be
+    // a spawn animation's FOV, and ordinary play has to be seen reading 1.0000.
+    if (fpp.fpp && g_zoomLogged && fpp.fovKnown && std::fabs(zoomFactor - g_zoomLoggedFactor) > 0.005f &&
+        GetTickCount64() - g_zoomLoggedTick >= 1000) {
+        g_zoomLoggedFactor = zoomFactor;
+        g_zoomLoggedTick = GetTickCount64();
+        Logger::Instance().Info("Zoom factor %.4f (live %.4f / base %.4f deg vertical)", zoomFactor, fpp.liveFovDeg,
+                                fpp.baseFovDeg);
+    }
+    if (fpp.fpp && !g_zoomLogged) {
+        g_zoomLogged = true;
+        g_zoomLoggedFactor = zoomFactor;
+        g_zoomLoggedTick = GetTickCount64();
+        if (fpp.fovKnown) {
+            Logger::Instance().Info("Zoom compensation: live FOV %.4f deg vertical (engine camera, radians x 57.2958), "
+                                    "base %.4f deg vertical (first-person camera before zoom), both vertical so no "
+                                    "aspect conversion, factor %.4f",
+                                    fpp.liveFovDeg, fpp.baseFovDeg, zoomFactor);
+        } else {
+            Logger::Instance().Warning("Zoom compensation: the first-person camera's FOV is unreadable, so head "
+                                       "tracking is not scaled to the zoom");
         }
     }
 
@@ -290,6 +340,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     // so head tracking is as smooth as mouse-driven camera rotation.
     float processedYaw, processedPitch, processedRoll;
     if (!Mod::Instance().GetProcessedRotation(processedYaw, processedPitch, processedRoll)) {
+        g_aimPose.Stop();
         ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
         return;
     }
@@ -308,17 +359,26 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     g_gameplayCache.headTrackingAppliedThisFrame.store(true, std::memory_order_relaxed);
     g_gameplayCache.lastHeadTrackingAppliedTick.store(GetTickCount64(), std::memory_order_relaxed);
 
-    // Convert to radians and apply direction conventions
-    float yaw = -processedYaw * DEG_TO_RAD;
-    float pitch = processedPitch * DEG_TO_RAD;
-    float roll = processedRoll * DEG_TO_RAD;
-
     // Fetch 6DOF position offset up front so the rotation-threshold skip can
     // also account for it. In tracking-mode 2 (position only) rotation is
     // always zero, so without this hoist the threshold path would bypass
     // position application.
-    float posOffX = 0.0f, posOffY = 0.0f, posOffZ = 0.0f;
-    bool hasPosOffset = Mod::Instance().GetPositionOffset(posOffX, posOffY, posOffZ);
+    HeadPose tracked;
+    tracked.yaw = processedYaw;
+    tracked.pitch = processedPitch;
+    tracked.roll = processedRoll;
+    bool hasPosOffset = Mod::Instance().GetPositionOffset(tracked.lean.x, tracked.lean.y, tracked.lean.z);
+    if (!hasPosOffset) tracked.lean = cameraunlock::math::Vec3();
+    const HeadPose applied =
+        g_aimPose.Apply(tracked, fpp.aiming, Mod::Instance().IsTrueFreeLook(), zoomFactor, GetTickCount64());
+    const float posOffX = applied.lean.x;
+    const float posOffY = applied.lean.y;
+    const float posOffZ = applied.lean.z;
+
+    // Convert to radians and apply direction conventions
+    float yaw = -applied.yaw * DEG_TO_RAD;
+    float pitch = applied.pitch * DEG_TO_RAD;
+    float roll = applied.roll * DEG_TO_RAD;
     bool posSignificant = hasPosOffset && (fabsf(posOffX) > POSITION_THRESHOLD ||
                                            fabsf(posOffY) > POSITION_THRESHOLD ||
                                            fabsf(posOffZ) > POSITION_THRESHOLD);
@@ -440,6 +500,10 @@ bool InstallEngineCameraHook() {
     if (!InitializeGameStateDetection()) {
         Logger::Instance().Warning("Game state detection unavailable - head tracking disabled during loading by default");
     }
+
+    // Without it the sights read as down and nothing is scaled to the zoom; head tracking itself
+    // is unaffected.
+    InitializeAimState();
 
     return true;
 }

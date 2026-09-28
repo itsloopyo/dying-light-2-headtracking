@@ -17,7 +17,7 @@ set "ASI_LOADER_NAME=winmm.dll"
 :: whatever the user tuned. Listing an .ini in MOD_DLLS instead puts it through
 :: the unconditional copy and resets every key on every update.
 set "MOD_SEED_FILES="
-set "MOD_CONTROLS=Controls:&echo   End  - Toggle head tracking on/off"
+set "MOD_CONTROLS=Controls:&echo   End    - Toggle head tracking on/off&echo   Insert - Toggle true free look"
 :: Not used by this mod. Set blank so a value another mod's wrapper left in
 :: the same console does not reach the body.
 set "ASI_SUBDIR="
