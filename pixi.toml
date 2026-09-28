@@ -48,11 +48,13 @@ validate-release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/val
 # Manual; commit the result. CI does not run this.
 update-deps = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/update-deps.ps1" }
 
-# The config tests, the aim pose tests, the config differential test, which holds the frozen
-# HeadTracking.ini reader to v1.4.0's and the migration into CameraUnlock.ini to the frozen reader,
-# core's canonical config lint over every file that test migrated, and the check that the frozen
-# files keep their recorded hashes. Needs no game install.
-test = { cmd = "ctest --test-dir build -C Release --output-on-failure", depends-on = ["build-release"] }
+# The config tests and the aim pose tests. Needs no game install.
+test-unit = { cmd = "ctest --test-dir build -C Release --output-on-failure -LE differential", depends-on = ["build-release"] }
+# The config differential test, which holds the frozen HeadTracking.ini reader to v1.4.0's and
+# the migration into CameraUnlock.ini to the frozen reader, core's canonical config lint over every
+# file that test migrated, and the check that the frozen files keep their recorded hashes.
+test-differential = { cmd = "ctest --test-dir build -C Release --output-on-failure --no-tests=error -L differential", depends-on = ["build-release"] }
+test = { depends-on = ["test-unit", "test-differential"] }
 
 # Rewrites HeadTracking.ini, the committed config and the table's fresh render (the
 # CameraUnlock.ini a first launch creates), after a change to a row, a comment or a default, then
@@ -60,8 +62,8 @@ test = { cmd = "ctest --test-dir build -C Release --output-on-failure", depends-
 # it has run.
 render-config = { cmd = "build/Release/dl2ht_config_tests.exe --render-config HeadTracking.ini && node cameraunlock-core/scripts/encode-seed.mjs", depends-on = ["build-release"] }
 
-# Package release ZIP. Depends on test, so no ZIP is built from a tree whose config tests fail.
-package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build-release", "test"] }
+# Package release ZIP. Depends on test-unit, so no ZIP is built from a tree whose config tests fail.
+package = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/package-release.ps1", depends-on = ["build-release", "test-unit"] }
 
 # Automated release workflow
 release = { cmd = "powershell -ExecutionPolicy Bypass -File scripts/release.ps1" }
@@ -91,7 +93,7 @@ test-udp = { cmd = "python scripts/test-udp-receiver.py --test && python scripts
 test-udp-continuous = { cmd = "python scripts/test-udp-receiver.py --continuous --rate 120" }
 
 [dependencies]
-# CMake and Visual Studio come from the system. Node runs the canonical config lint under `test`,
-# render-config's encode-seed step and packaging's config descriptor check (Copy-SharedBundle),
-# pinned to the release core's own lock resolves.
+# CMake and Visual Studio come from the system. Node runs the canonical config lint under
+# `test-differential`, render-config's encode-seed step and packaging's config descriptor check
+# (Copy-SharedBundle), pinned to the release core's own lock resolves.
 nodejs = "==26.5.0"
