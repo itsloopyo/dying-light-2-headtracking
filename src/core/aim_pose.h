@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cameraunlock/ads/lean_handover.h>
+#include <cameraunlock/ads/ads_fade.h>
 #include <cameraunlock/camera/zoom_compensation.h>
 #include <cameraunlock/math/vec3.h>
 
@@ -26,26 +26,36 @@ inline float ZoomFactor(float liveFovDeg, float baseFovDeg) {
 
 // Head tracking through the aim, sights locked unless true free look is on. Rotation is never
 // faded: it only scales with the zoom, and roll not even then. The lean scales with the zoom and
-// eases out while the sights are up in sights locked; the game has no rig this mod can carry it
-// on, so the hand-over's rig share is always empty.
+// eases out on core's AdsFade while the sights are up in sights locked; the game has no rig this
+// mod can carry it on.
+//
+// The game moves more than one camera through the hooked call, and only the view camera's update
+// reads the sights. So only that update advances the fade, and every camera takes the lean at the
+// fade it left: fed "not aiming" from another camera, the fade would turn back every frame.
 class AimPose {
 public:
-    HeadPose Apply(const HeadPose& tracked, bool aiming, bool trueFreeLook, float zoomFactor,
-                   unsigned long long nowMs) {
+    // Once per update of the view camera, with this frame's sights.
+    void Update(bool aiming, bool trueFreeLook, unsigned long long nowMs) {
+        m_leanScale = m_fade.Update(aiming && !trueFreeLook, nowMs);
+    }
+
+    HeadPose Apply(const HeadPose& tracked, float zoomFactor) const {
         HeadPose out = tracked;
         out.yaw = cameraunlock::camera::ScaleAngleForZoom(tracked.yaw, zoomFactor);
         out.pitch = cameraunlock::camera::ScaleAngleForZoom(tracked.pitch, zoomFactor);
-        const cameraunlock::ads::LeanShares shares =
-            m_handover.Update(tracked.lean * zoomFactor, aiming, trueFreeLook, false, nowMs);
-        out.lean = shares.camera;
+        out.lean = tracked.lean * (zoomFactor * m_leanScale);
         return out;
     }
 
     // Every frame the camera gets no head tracking: the next aim starts from the hip.
-    void Stop() { m_handover.Stop(); }
+    void Stop() {
+        m_fade.Reset();
+        m_leanScale = 1.0f;
+    }
 
 private:
-    cameraunlock::ads::LeanHandover m_handover;
+    cameraunlock::ads::AdsFade m_fade;
+    float m_leanScale = 1.0f;
 };
 
 } // namespace DL2HT

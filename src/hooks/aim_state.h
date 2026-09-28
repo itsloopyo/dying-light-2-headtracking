@@ -4,8 +4,11 @@ namespace DL2HT {
 
 // What the first-person camera is doing this frame, read from the game's own state.
 struct FppCameraSample {
-    // The camera being moved is the player's first-person camera (CameraFPPDI). Everything below
-    // is meaningless when false.
+    // The camera being moved is the one the level renders the view from. Only its update reads
+    // the sights.
+    bool view = false;
+    // It is also the player's first-person camera (CameraFPPDI). Everything below is meaningless
+    // when false.
     bool fpp = false;
     // Aiming down the sights of a firearm, polled from the player's firearm module every frame.
     bool aiming = false;

@@ -7,7 +7,9 @@
 #include "core/mod.h"
 #include "core/logger.h"
 #include "core/rotation_math.h"
+
 #include <cameraunlock/memory/pattern_scanner.h>
+#include <cameraunlock/time/qpc_clock.h>
 
 namespace DL2HT {
 
@@ -305,7 +307,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     const FppCameraSample fpp = SampleFppCamera(thisCamera, GetLevelDI());
     float zoomFactor = 1.0f;
     if (fpp.fovKnown) zoomFactor = ZoomFactor(fpp.liveFovDeg, fpp.baseFovDeg);
-    if (fpp.aiming != g_wasAiming) {
+    if (fpp.view && fpp.aiming != g_wasAiming) {
         g_wasAiming = fpp.aiming;
         Logger::Instance().Info("Sights %s", fpp.aiming ? "up" : "down");
     }
@@ -369,8 +371,11 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     tracked.roll = processedRoll;
     bool hasPosOffset = Mod::Instance().GetPositionOffset(tracked.lean.x, tracked.lean.y, tracked.lean.z);
     if (!hasPosOffset) tracked.lean = cameraunlock::math::Vec3();
-    const HeadPose applied =
-        g_aimPose.Apply(tracked, fpp.aiming, Mod::Instance().IsTrueFreeLook(), zoomFactor, GetTickCount64());
+    // GetTickCount64 steps in about 16 ms, a tenth of the fade.
+    if (fpp.view) {
+        g_aimPose.Update(fpp.aiming, Mod::Instance().IsTrueFreeLook(), cameraunlock::time::QpcNowMicros() / 1000);
+    }
+    const HeadPose applied = g_aimPose.Apply(tracked, zoomFactor);
     const float posOffX = applied.lean.x;
     const float posOffY = applied.lean.y;
     const float posOffZ = applied.lean.z;

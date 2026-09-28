@@ -195,6 +195,7 @@ FppCameraSample SampleFppCamera(void* innerCamera, void* level) {
     void* engineCamera = nullptr;
     if (!camera || !PtrAt(camera, g.innerOffset, engineCamera)) return s;
     if (engineCamera != innerCamera) return s;
+    s.view = true;
 
     float liveRad = 0.0f;
     float baseDeg = 0.0f;
