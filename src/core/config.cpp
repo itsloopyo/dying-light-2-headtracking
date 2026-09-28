@@ -29,6 +29,14 @@ std::string KeyList(int vk, char letter, const char* key, std::vector<cfg::Dropp
     return code.empty() ? chord : code + ", " + chord;
 }
 
+constexpr int kVkInsert = 0x2D;
+
+// No published build had true free look. Its key list comes after the other three, so where one
+// of them already has Insert the list keeps only its chord, and Insert fires what it fired before.
+bool InsertTaken(const legacy::Config& c) {
+    return c.toggleKey == kVkInsert || c.trackingModeKey == kVkInsert || c.yawModeKey == kVkInsert;
+}
+
 cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
     legacy::Config c;
     const legacy::ReadStatus status = legacy::Read(input.ansi_path.c_str(), c);
@@ -102,6 +110,10 @@ cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
     out.toggle_key_name = KeyList(c.toggleKey, 'Y', "ToggleKey", dropped);
     out.cycle_tracking_mode_key_name = KeyList(c.trackingModeKey, 'G', "TrackingModeKey", dropped);
     out.yaw_mode_key_name = KeyList(c.yawModeKey, 'H', "YawModeKey", dropped);
+    if (InsertTaken(c)) {
+        out.true_free_look_key_name =
+            cameraunlock::input::FormatKeyBindings({KeyBinding{KeyModifiers::kCtrl | KeyModifiers::kShift, 'U'}});
+    }
 
     out.show_notifications = c.showNotifications;
 
@@ -126,9 +138,9 @@ cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
     follows.Setting(C::ToggleKey, c.toggleKey, shipped.toggleKey);
     follows.Setting(C::CycleTrackingModeKey, c.trackingModeKey, shipped.trackingModeKey);
     follows.Setting(C::YawModeKey, c.yawModeKey, shipped.yawModeKey);
-    // No published build had true free look or its key.
+    // No published build had true free look.
     follows.Setting(C::TrueFreeLook, true);
-    follows.Setting(C::TrueFreeLookKey, true);
+    follows.Setting(C::TrueFreeLookKey, !InsertTaken(c));
 
     return absent ? cfg::ImportResult::Absent(std::move(dropped), std::move(shaping), follows.Concepts())
                   : cfg::ImportResult::Imported(std::move(dropped), std::move(shaping), follows.Concepts());

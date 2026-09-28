@@ -18,7 +18,9 @@
 // on are dropped (pose_shaping); the shipped values are what the mod now applies. [Reticle]
 // Enabled=false and the reticle key are dropped (reticle): the aim dot is drawn whenever head
 // tracking is on, and neither the key nor Ctrl+Shift+U toggles it. Insert and Ctrl+Shift+U toggle
-// true free look instead, which no published build had and which starts off. A hotkey code outside
+// true free look instead, which no published build had and which starts off; where the file put
+// another action on Insert, that action keeps it and true free look takes Ctrl+Shift+U alone, a
+// row the player changed. A hotkey code outside
 // 0x01-0xFE imports as unbound (N1), as does a code on Ctrl, Shift or Alt alone (N3), each keeping
 // its Ctrl+Shift chord, and a position limit that is not a number imports as its default (N2).
 // The reader keeps every other value inside a range the canonical rows hold, so no input is
@@ -47,8 +49,9 @@
 // ZIP and launcher seed carry the same bytes in each release) and every other version of the file
 // committed up to v1.4.0, the file each published build wrote at first launch when there was none
 // (extracted once into inputs/ from each build's own config code), v1.4.0's file with a value
-// continued on an indented line, core's corpus over v1.4.0's file, and v1.4.0's file with all four
-// hotkeys on each code from 0x01 to 0xFE. There is no dev pre-release.
+// continued on an indented line, v1.4.0's file with each of the other three hotkeys on Insert,
+// core's corpus over v1.4.0's file, and v1.4.0's file with all four hotkeys on each code from 0x01
+// to 0xFE. There is no dev pre-release.
 
 #include "pch.h"
 #include "core/config.h"
@@ -599,14 +602,17 @@ Reading FromMigration(const Config& c) {
 
 // The reticle key and its Ctrl+Shift+U are gone for every player, a file or none (reticle): the aim
 // dot is drawn whenever head tracking is on. Insert and Ctrl+Shift+U toggle true free look instead,
-// a setting no published build had, which starts off.
+// a setting no published build had, which starts off. Where another action already has Insert,
+// true free look takes only Ctrl+Shift+U, so Insert fires what it fired before.
 Reading WithTodaysToggles(Reading g) {
     g.reticle_shown = true;
     g.hotkeys.erase(std::remove_if(g.hotkeys.begin(), g.hotkeys.end(),
                                    [](const Registration& r) { return r.action == Action::Reticle; }),
                     g.hotkeys.end());
     g.true_free_look = false;
-    g.hotkeys.push_back({Action::TrueFreeLook, VK_INSERT, kNav});
+    const bool insertTaken = std::any_of(g.hotkeys.begin(), g.hotkeys.end(),
+                                         [](const Registration& r) { return r.vk == VK_INSERT && r.modifiers == kNav; });
+    if (!insertTaken) g.hotkeys.push_back({Action::TrueFreeLook, VK_INSERT, kNav});
     g.hotkeys.push_back({Action::TrueFreeLook, 'U', kChord});
     return g;
 }
@@ -816,9 +822,11 @@ std::set<Concept> RowsThatDiffer(const Record& a, const Record& b) {
 }
 
 // The rows the player never changed: every entry of the row reads as a file holding only the
-// frozen defaults does, or holds a number that is not finite.
+// frozen defaults does, or holds a number that is not finite. `imported` carries today's toggles,
+// since the true free look key depends on the keys the file gave the other actions.
 std::set<Concept> UntouchedRows(const Record& imported) {
-    static const Record defaults = Observe(FromImport(legacy::ReadStatus::Read, legacy::Config{}));
+    static const Record defaults =
+        Observe(WithTodaysToggles(FromImport(legacy::ReadStatus::Read, legacy::Config{})));
     const std::set<Concept> changed = RowsThatDiffer(imported, defaults);
     std::set<Concept> untouched;
     for (const Concept row : AllRows()) {
@@ -859,6 +867,8 @@ struct MigrationTally {
     int converted = 0;
     int touched = 0;
     int mode_touched = 0;
+    // Migrations where an action kept Insert and true free look took Ctrl+Shift+U alone.
+    int insert_kept = 0;
     DropCounts drops;
     // The settings a first launch runs on over the built-in and over the skewed Defaults.ini.
     Record builtin;
@@ -968,12 +978,19 @@ void MigrateInput(const Folders& f, const Input& input, const ImportRun& i, cons
     ++tally.converted;
     const std::set<Concept> follows(result->follows_defaults_ini.begin(), result->follows_defaults_ini.end());
     if (follows.size() != result->follows_defaults_ini.size()) Fail(input.name, "follows_defaults_ini names a row twice");
-    const std::set<Concept> untouched = UntouchedRows(Observe(FromImport(i.status, i.cfg)));
+    const std::set<Concept> untouched = UntouchedRows(Observe(WithTodaysToggles(FromImport(i.status, i.cfg))));
     if (follows != untouched) {
         Fail(input.name, "the rows left to Defaults.ini are " + RowNames(follows) + ", the rows the player never changed " +
                              RowNames(untouched));
     }
     if (untouched != AllRows()) ++tally.touched;
+    if (!untouched.count(Concept::TrueFreeLookKey)) {
+        if (ReadBytes(f.migration + L"\\" + kCanonicalName).find("\r\nTrueFreeLookKey=Ctrl+Shift+U\r\n") ==
+            std::string::npos) {
+            Fail(input.name, "an action on Insert leaves TrueFreeLookKey more than Ctrl+Shift+U");
+        }
+        ++tally.insert_kept;
+    }
     if (!untouched.count(Concept::RotationEnabled)) ++tally.mode_touched;
     if (IsUnedited(input.name)) {
         if (untouched != AllRows()) Fail(input.name, "an unedited file leaves " + RowNames(untouched) + " to Defaults.ini");
@@ -1228,6 +1245,10 @@ int main() {
                           WithLineAfter(WithValue(shipped, "AutoEnable", "false"), "AutoEnable=false",
                                         "    true ; turned back on"),
                           true});
+        // One action on Insert, beside the reticle key the file already has there.
+        for (const char* key : {"ToggleKey", "TrackingModeKey", "YawModeKey"}) {
+            inputs.push_back({std::string("v1.4.0 shipped, ") + key + "=0x2D", WithValue(shipped, key, "0x2D")});
+        }
         for (const Input& input : inputs) RunInput(folders, input, tally);
         TestUnopenableFile(folders, shipped);
 
@@ -1254,11 +1275,13 @@ int main() {
         std::printf("  %d with a hotkey on Ctrl, Shift or Alt alone unbound (N3)\n", tally.drops.n3);
         std::printf("  %d changing a row from v1.4.0's default, %d of them the tracking mode\n", tally.touched,
                     tally.mode_touched);
+        std::printf("  %d with an action on Insert and true free look on Ctrl+Shift+U alone\n", tally.insert_kept);
         if (tally.drops.pose_shaping == 0) Fail("pose shaping", "no input drops a changed value");
         if (tally.drops.reticle == 0) Fail("reticle", "no input drops a reticle setting");
         if (tally.drops.n1 == 0) Fail("N1", "no input unbinds a hotkey code");
         if (tally.drops.n2 == 0) Fail("N2", "no input takes a limit that is not a number to its default");
         if (tally.drops.n3 == 0) Fail("N3", "no input unbinds a hotkey on a modifier key");
+        if (tally.insert_kept < 4) Fail("Insert", "the inputs with an action on Insert do not each keep it there");
         if (tally.touched == 0 || tally.mode_touched == 0) {
             Fail("follows Defaults.ini", "no input changes a row, or none the tracking mode");
         }
