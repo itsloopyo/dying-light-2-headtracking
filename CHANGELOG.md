@@ -132,6 +132,17 @@
   sensitivities at 2.0 and the inversions off, and the mod applies a lean at
   twice the head's movement itself now.
 
+### Fixed
+
+- The aim dot is scaled by the field of view the game is rendering, read from
+  the view camera every frame, instead of a value read from the wrong camera
+  object. Only the view camera moves it now, so another camera the game updates
+  in the same frame no longer overwrites where it is drawn.
+- Quitting the game no longer tears down the overlay and hooks while Windows is
+  already unloading the graphics runtime.
+- The aim dot survives a resize that changes the number of swap chain buffers,
+  and is not drawn onto another swap chain's frames.
+
 ## [1.4.0] - 2026-08-20
 
 ### Added

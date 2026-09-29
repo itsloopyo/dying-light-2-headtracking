@@ -6,7 +6,6 @@
 #include "hooks/engine_camera_hook.h"
 #include "hooks/input_hook.h"
 #include "hooks/dx_hook.h"
-#include "hooks/crosshair_hook.h"
 #include "ui/notification.h"
 
 #include <cameraunlock/time/qpc_clock.h>
@@ -33,6 +32,7 @@ bool Mod::Initialize() {
     m_trueFreeLook.store(m_config.true_free_look);
 
     m_session.SetMode(StartupTrackingMode(m_config));
+    m_desiredMode.store(m_session.GetMode());
     cameraunlock::PositionSettings posSettings = m_config.position;
     posSettings.sensitivity_x = kPositionSensitivity;
     posSettings.sensitivity_y = kPositionSensitivity;
@@ -196,19 +196,7 @@ bool Mod::InitializeHooks() {
         Logger::Instance().Info("Input hook installed");
     }
 
-    // Crosshair hook for hiding stock crosshair - deferred
-    // Will scan for GuiCrosshairData after game is fully loaded
-    // DX hook for overlay is installed from camera hook on first frame
-    InstallCrosshairHook();
-
-    // Enable all hooks that were successfully installed
-    __try {
-        if (!HookManager::Instance().EnableAllHooks()) {
-            Logger::Instance().Warning("Failed to enable some hooks");
-        }
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-        Logger::Instance().Error("CRASH enabling hooks - exception caught");
-    }
+    // The DX hook for the aim dot is installed from the camera hook on its first call.
 
     // Return true if at least input hook works (for hotkeys)
     return m_inputHookInstalled;
@@ -217,9 +205,6 @@ bool Mod::InitializeHooks() {
 void Mod::ShutdownHooks() {
     // Always try to remove DX hook (may have been installed via deferred init)
     RemoveDXHook();
-
-    // Remove crosshair hook
-    RemoveCrosshairHook();
 
     if (m_inputHookInstalled) {
         RemoveInputHook();
@@ -240,7 +225,6 @@ void Mod::SetEnabled(bool enabled) {
         // Update hooks directly
         SetCameraHookEnabled(enabled);
         SetCrosshairEnabled(enabled);
-        SetStockCrosshairVisible(!enabled);
 
         if (enabled) {
             Logger::Instance().Info("Head tracking enabled");
@@ -262,7 +246,12 @@ void Mod::Toggle() {
 }
 
 void Mod::CycleTrackingMode() {
-    cameraunlock::TrackingMode mode = m_session.CycleMode();
+    // Computed from the last requested mode, so two presses before the next camera update still
+    // advance two steps. The camera thread applies it: SetMode resets the position smoothing,
+    // which Update is reading on that thread.
+    const cameraunlock::TrackingMode mode =
+        static_cast<cameraunlock::TrackingMode>((static_cast<int>(m_desiredMode.load()) + 1) % 3);
+    m_desiredMode.store(mode);
 
     const char* label = nullptr;
     const char* notify = nullptr;
@@ -334,6 +323,8 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
         if (deltaTime < 0.0001f) deltaTime = 0.0001f;
     }
     m_lastProcessTime = now;
+
+    m_session.SetMode(m_desiredMode.load());
 
     // Run the full tracking pipeline (rotation + position) once per frame
     m_cachedValid = m_session.Update(deltaTime);

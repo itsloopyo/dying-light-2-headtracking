@@ -198,6 +198,11 @@ FppCameraSample SampleFppCamera(void* innerCamera, void* level) {
     s.view = true;
 
     float liveRad = 0.0f;
+    if (FloatAt(innerCamera, g.fovOffset, liveRad) && UsableFov(liveRad * 57.2957795f)) {
+        s.liveFovKnown = true;
+        s.liveFovDeg = liveRad * 57.2957795f;
+    }
+
     float baseDeg = 0.0f;
     void* visual = nullptr;
     if (!g.fovReady || !PtrAt(camera, g.visualOffset, visual) || !visual) return s;
@@ -213,13 +218,9 @@ FppCameraSample SampleFppCamera(void* innerCamera, void* level) {
     if (g.aimReady && slot != g.zoomFn) return s;
     s.fpp = true;
 
-    if (FloatAt(innerCamera, g.fovOffset, liveRad) && FloatAt(camera, g.baseFovOffset, baseDeg)) {
-        const float liveDeg = liveRad * 57.2957795f;
-        if (UsableFov(liveDeg) && UsableFov(baseDeg)) {
-            s.fovKnown = true;
-            s.liveFovDeg = liveDeg;
-            s.baseFovDeg = baseDeg;
-        }
+    if (s.liveFovKnown && FloatAt(camera, g.baseFovOffset, baseDeg) && UsableFov(baseDeg)) {
+        s.fovKnown = true;
+        s.baseFovDeg = baseDeg;
     }
 
     if (!g.aimReady) return s;

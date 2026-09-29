@@ -68,6 +68,9 @@ private:
     cameraunlock::UdpReceiver m_udpReceiver;
     cameraunlock::HeadTrackingSession<cameraunlock::UdpReceiver> m_session;
 
+    // The tracking mode the hotkey asked for, applied to the session on the camera thread.
+    std::atomic<cameraunlock::TrackingMode> m_desiredMode{cameraunlock::TrackingMode::RotationAndPosition};
+
     // Yaw rotation frame (PgDn / Ctrl+Shift+H toggles)
     std::atomic<bool> m_worldLockedYaw{false};
 

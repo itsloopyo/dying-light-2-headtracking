@@ -8,7 +8,6 @@ public:
 
     bool Initialize();
     void Shutdown();
-    bool EnableAllHooks();
 
     HookManager(const HookManager&) = delete;
     HookManager& operator=(const HookManager&) = delete;

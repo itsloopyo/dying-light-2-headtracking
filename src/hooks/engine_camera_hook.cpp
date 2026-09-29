@@ -9,6 +9,7 @@
 #include "core/rotation_math.h"
 
 #include <cameraunlock/memory/pattern_scanner.h>
+#include <cameraunlock/memory/safe_memory.h>
 #include <cameraunlock/time/qpc_clock.h>
 
 namespace DL2HT {
@@ -29,7 +30,6 @@ static constexpr int CGAME_LEVEL_NAME_OFFSET = 0x3B0;  // inline string, "menu_l
 // Function signatures
 typedef bool (*IsLoadingFunc_t)(void* pLevel);
 typedef bool (*IsTimerFrozenFunc_t)(void* pLevel);
-typedef float (*GetFOVFunc_t)(void* pCamera);
 typedef void (*MoveCameraFunc_t)(void* thisCamera, void* forward, void* up, void* position);
 
 // Hook state - MinHook function pointers and state
@@ -57,8 +57,6 @@ struct GameplayStateCache {
     std::atomic<uintptr_t> lastLevelDI{0};           // track LevelDI pointer changes
     std::atomic<ULONGLONG> levelChangedTick{0};      // when LevelDI pointer changed
     std::atomic<ULONGLONG> lastFrameTick{0};
-    std::atomic<ULONGLONG> lastCameraHookTick{0};
-    std::atomic<bool> headTrackingAppliedThisFrame{false};
     std::atomic<ULONGLONG> lastHeadTrackingAppliedTick{0};
 };
 
@@ -67,7 +65,6 @@ struct GameStateDetection {
     void** pCLobbySteamPtr = nullptr;
     IsLoadingFunc_t pIsLoadingFunc = nullptr;
     IsTimerFrozenFunc_t pIsTimerFrozenFunc = nullptr;
-    GetFOVFunc_t pGetFOVFunc = nullptr;
     bool initialized = false;
 };
 
@@ -118,69 +115,8 @@ static bool InitializeGameStateDetection() {
         Logger::Instance().Info("Found ILevel::IsTimerFrozen at %p", g_gameState.pIsTimerFrozenFunc);
     }
 
-    // IBaseCamera::GetFOV() const - returns horizontal FOV in degrees
-    g_gameState.pGetFOVFunc = (GetFOVFunc_t)GetProcAddress(engineModule, "?GetFOV@IBaseCamera@@QEBAMXZ");
-    if (g_gameState.pGetFOVFunc) {
-        Logger::Instance().Info("Found IBaseCamera::GetFOV at %p", g_gameState.pGetFOVFunc);
-    }
-
     g_gameState.initialized = (g_gameState.pCLobbySteamPtr != nullptr);
     return g_gameState.initialized;
-}
-
-// Get the LevelDI pointer via the pattern-scanned global
-// Chain: CLobbySteam → +0xF8 → CGame → +0x390 → CLevel → +0x20 → LevelDI
-// Returns nullptr if any pointer in the chain is invalid
-static void* GetLevelDI() {
-    if (!g_gameState.initialized || !g_gameState.pCLobbySteamPtr)
-        return nullptr;
-
-    __try {
-        void* pCLobbySteam = *g_gameState.pCLobbySteamPtr;
-        if (!pCLobbySteam) return nullptr;
-
-        void* pCGame = *(void**)((BYTE*)pCLobbySteam + CLOBBYSTEAM_TO_CGAME_OFFSET);
-        if (!pCGame) return nullptr;
-
-        void* pCLevel = *(void**)((BYTE*)pCGame + CGAME_TO_CLEVEL_OFFSET);
-        if (!pCLevel) return nullptr;
-
-        void* pLevelDI = *(void**)((BYTE*)pCLevel + CLEVEL_TO_LEVELDI_OFFSET);
-        return pLevelDI;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return nullptr;
-    }
-}
-
-// Check if level is currently loading using game's own IsLoading function
-// Returns true (loading) when state cannot be determined - this disables
-// head tracking during uncertain states, which is the safe behavior
-static bool IsLevelLoading() {
-    if (!g_gameState.pIsLoadingFunc) return true;
-
-    void* pLevelDI = GetLevelDI();
-    if (!pLevelDI) return true;  // null LevelDI = no level loaded (main menu)
-
-    __try {
-        return g_gameState.pIsLoadingFunc(pLevelDI);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return true;
-    }
-}
-
-// Check if game timer is frozen (paused) using game's own IsTimerFrozen function
-// Returns true (paused) when state cannot be determined - safe default
-static bool IsTimerFrozen() {
-    if (!g_gameState.pIsTimerFrozenFunc) return true;
-
-    void* pLevelDI = GetLevelDI();
-    if (!pLevelDI) return true;  // null LevelDI = not in gameplay
-
-    __try {
-        return g_gameState.pIsTimerFrozenFunc(pLevelDI);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return true;
-    }
 }
 
 // Get CGame pointer (shared helper for menu detection and diagnostics)
@@ -193,16 +129,57 @@ static void* GetCGame() {
         if (!pCLobbySteam) return nullptr;
 
         return *(void**)((BYTE*)pCLobbySteam + CLOBBYSTEAM_TO_CGAME_OFFSET);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (cameraunlock::memory::AccessViolationFilter(GetExceptionCode())) {
         return nullptr;
+    }
+}
+
+// Chain: CLobbySteam → +0xF8 → CGame → +0x390 → CLevel → +0x20 → LevelDI
+// Returns nullptr if any pointer in the chain is invalid
+static void* GetLevelDI(void* pCGame) {
+    if (!pCGame) return nullptr;
+
+    __try {
+        void* pCLevel = *(void**)((BYTE*)pCGame + CGAME_TO_CLEVEL_OFFSET);
+        if (!pCLevel) return nullptr;
+
+        return *(void**)((BYTE*)pCLevel + CLEVEL_TO_LEVELDI_OFFSET);
+    } __except (cameraunlock::memory::AccessViolationFilter(GetExceptionCode())) {
+        return nullptr;
+    }
+}
+
+// Check if level is currently loading using game's own IsLoading function
+// Returns true (loading) when state cannot be determined - this disables
+// head tracking during uncertain states, which is the safe behavior
+static bool IsLevelLoading(void* pLevelDI) {
+    if (!g_gameState.pIsLoadingFunc) return true;
+    if (!pLevelDI) return true;  // null LevelDI = no level loaded (main menu)
+
+    __try {
+        return g_gameState.pIsLoadingFunc(pLevelDI);
+    } __except (cameraunlock::memory::AccessViolationFilter(GetExceptionCode())) {
+        return true;
+    }
+}
+
+// Check if game timer is frozen (paused) using game's own IsTimerFrozen function
+// Returns true (paused) when state cannot be determined - safe default
+static bool IsTimerFrozen(void* pLevelDI) {
+    if (!g_gameState.pIsTimerFrozenFunc) return true;
+    if (!pLevelDI) return true;  // null LevelDI = not in gameplay
+
+    __try {
+        return g_gameState.pIsTimerFrozenFunc(pLevelDI);
+    } __except (cameraunlock::memory::AccessViolationFilter(GetExceptionCode())) {
+        return true;
     }
 }
 
 // Check if the current level is the main menu by scanning for "menu" in the level path
 // embedded near CGame+0x3B0. On main menu: "aps/menu_level/menu_level.exp"
 // Returns false when state cannot be determined - let other checks (frozen) handle it
-static bool IsOnMainMenu() {
-    void* pCGame = GetCGame();
+static bool IsOnMainMenu(void* pCGame) {
     if (!pCGame) return false;
 
     __try {
@@ -215,7 +192,7 @@ static bool IsOnMainMenu() {
                 return true;
         }
         return false;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    } __except (cameraunlock::memory::AccessViolationFilter(GetExceptionCode())) {
         return false;
     }
 }
@@ -249,10 +226,6 @@ static void* FindMoveCameraFunction() {
 }
 
 void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* position) {
-    // Record that camera hook is running (for gameplay detection)
-    // Relaxed ordering - just a timestamp, no synchronization needed
-    g_gameplayCache.lastCameraHookTick.store(GetTickCount64(), std::memory_order_relaxed);
-
     // Deferred DX hook initialization - D3D12 is definitely loaded now
     if (!g_hook.dxHookInitialized) {
         g_hook.dxHookInitialized = true;  // Only try once
@@ -304,9 +277,12 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     // Read after the gameplay gate, so a menu or a load reports its own reason and the game's
     // camera and firearm state are only asked for in gameplay.
-    const FppCameraSample fpp = SampleFppCamera(thisCamera, GetLevelDI());
+    const FppCameraSample fpp = SampleFppCamera(thisCamera, GetLevelDI(GetCGame()));
     float zoomFactor = 1.0f;
     if (fpp.fovKnown) zoomFactor = ZoomFactor(fpp.liveFovDeg, fpp.baseFovDeg);
+    // The aim dot follows the view camera alone. Other cameras moved through this call would
+    // otherwise overwrite its projection with their own basis and an unscaled zoom.
+    if (fpp.view) SetCrosshairFOV(fpp.liveFovKnown ? fpp.liveFovDeg : 0.0f);
     if (fpp.view && fpp.aiming != g_wasAiming) {
         g_wasAiming = fpp.aiming;
         Logger::Instance().Info("Sights %s", fpp.aiming ? "up" : "down");
@@ -347,18 +323,6 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         return;
     }
 
-    // Read live FOV from the camera object for accurate crosshair projection
-    if (g_gameState.pGetFOVFunc) {
-        __try {
-            float fov = g_gameState.pGetFOVFunc(thisCamera);
-            if (fov > 1.0f && fov < 180.0f) {
-                SetCrosshairFOV(fov);
-            }
-        } __except (EXCEPTION_EXECUTE_HANDLER) {}
-    }
-
-    // Mark gameplay state
-    g_gameplayCache.headTrackingAppliedThisFrame.store(true, std::memory_order_relaxed);
     g_gameplayCache.lastHeadTrackingAppliedTick.store(GetTickCount64(), std::memory_order_relaxed);
 
     // Fetch 6DOF position offset up front so the rotation-threshold skip can
@@ -393,7 +357,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     // Skip if neither rotation nor position would change the camera
     if (!rotSignificant && !posSignificant) {
-        SetCrosshairProjection(0, 0);
+        if (fpp.view) SetCrosshairProjection(0, 0);
         ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
         return;
     }
@@ -442,7 +406,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     //
     // This naturally handles both rotation and position because we use
     // the ACTUAL modified camera vectors, not a reconstruction from angles.
-    {
+    if (fpp.view) {
         // toAim = originalPos + D * originalFwd - headTrackedPos
         //       = D * originalFwd - (headTrackedPos - originalPos)
         // The position delta is (myPos - posIn) in world space.
@@ -542,8 +506,11 @@ void RefreshGameplayStateCache() {
     if (now == lastFrame) return;
     g_gameplayCache.lastFrameTick.store(now, std::memory_order_relaxed);
 
+    void* pCGame = GetCGame();
+    void* pLevelDI = GetLevelDI(pCGame);
+
     // Update loading state and detect transitions
-    bool loading = IsLevelLoading();
+    bool loading = IsLevelLoading(pLevelDI);
     bool wasLoading = g_gameplayCache.wasLoading.load(std::memory_order_relaxed);
     g_gameplayCache.levelLoading.store(loading, std::memory_order_relaxed);
     g_gameplayCache.wasLoading.store(loading, std::memory_order_relaxed);
@@ -554,15 +521,14 @@ void RefreshGameplayStateCache() {
     }
 
     // Update timer frozen state (paused/menu detection)
-    bool frozen = IsTimerFrozen();
+    bool frozen = IsTimerFrozen(pLevelDI);
     g_gameplayCache.timerFrozen.store(frozen, std::memory_order_relaxed);
 
     // Update main menu detection
-    bool mainMenu = IsOnMainMenu();
+    bool mainMenu = IsOnMainMenu(pCGame);
     g_gameplayCache.onMainMenu.store(mainMenu, std::memory_order_relaxed);
 
     // Track LevelDI pointer changes (level transitions)
-    void* pLevelDI = GetLevelDI();
     uintptr_t currentLevelDI = (uintptr_t)pLevelDI;
     uintptr_t prevLevelDI = g_gameplayCache.lastLevelDI.load(std::memory_order_relaxed);
     if (currentLevelDI != prevLevelDI) {
@@ -575,14 +541,6 @@ void RefreshGameplayStateCache() {
         }
         firstAssignment = false;
     }
-
-    // Reset per-frame head tracking flag
-    // It will be set to true by MoveCameraHook if rotation is actually applied
-    g_gameplayCache.headTrackingAppliedThisFrame.store(false, std::memory_order_relaxed);
-}
-
-bool IsAtMainMenu() {
-    return g_gameplayCache.onMainMenu.load(std::memory_order_relaxed);
 }
 
 bool IsInGameplay() {

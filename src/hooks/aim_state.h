@@ -12,6 +12,8 @@ struct FppCameraSample {
     bool fpp = false;
     // Aiming down the sights of a firearm, polled from the player's firearm module every frame.
     bool aiming = false;
+    // Whether the view camera's own FOV was readable. Needs only `view`, not `fpp`.
+    bool liveFovKnown = false;
     // Whether both FOV terms were readable. When false, the zoom factor is not known.
     bool fovKnown = false;
     // Vertical FOV the camera is projecting with this frame, degrees.

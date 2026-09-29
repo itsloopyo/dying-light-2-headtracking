@@ -53,8 +53,6 @@ unsigned __stdcall InitThread(void* lpParam) {
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
-    (void)lpReserved;
-
     switch (reason) {
         case DLL_PROCESS_ATTACH:
             DisableThreadLibraryCalls(hModule);
@@ -63,6 +61,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
             break;
 
         case DLL_PROCESS_DETACH:
+            // A non-null lpReserved means the process is exiting: every other thread is already
+            // gone and DLLs such as d3d12 may have run their own detach, so releasing COM objects
+            // or suspending threads to unhook here can crash the game on the way out.
+            if (lpReserved) break;
             if (g_initThreadHandle) {
                 WaitForSingleObject(g_initThreadHandle, 2000);
                 CloseHandle(g_initThreadHandle);

@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "dx_hook.h"
-#include "crosshair_hook.h"
 #include "engine_camera_hook.h"
 #include "core/logger.h"
 
@@ -24,7 +23,6 @@ typedef HRESULT(__stdcall* Present1_t)(IDXGISwapChain1* pSwapChain, UINT SyncInt
 typedef HRESULT(__stdcall* ResizeBuffers_t)(IDXGISwapChain* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags);
 
 // Constants
-static constexpr float DEFAULT_FOV_DEG = 75.0f;
 static constexpr int DX12_EXECUTECOMMANDLISTS_INDEX = 54;
 static constexpr int DX12_PRESENT_INDEX = 140;
 static constexpr int DX12_PRESENT1_INDEX = 154;
@@ -53,16 +51,22 @@ struct DX12State {
     ID3D12DescriptorHeap* pRtvDescHeap = nullptr;
     UINT rtvDescriptorSize = 0;
     UINT bufferCount = 0;
+    DXGI_FORMAT rtvFormat = DXGI_FORMAT_UNKNOWN;
 
-    // Window
     HWND hWindow = nullptr;
-    WNDPROC oWndProc = nullptr;
 
+    // The swap chain the resources above belong to. Not a reference: only compared against.
+    IDXGISwapChain* pSwapChain = nullptr;
     // Cached SwapChain3 interface (avoids per-frame QueryInterface)
     IDXGISwapChain3* pSwapChain3 = nullptr;
 
     // State flags
     bool initialized = false;
+    // Set when initialization fails, so it is not retried every Present on half-built state.
+    bool initFailed = false;
+    // False after a ResizeBuffers the back buffers could not be fetched again for.
+    bool buffersReady = false;
+    bool foreignSwapChainLogged = false;
     bool hookInstalled = false;
     bool commandQueueReady = false;
     bool execCmdListsCalled = false;
@@ -78,7 +82,9 @@ struct CrosshairState {
     // and position offset without decomposition or sign ambiguity.
     std::atomic<float> tanRight{0.0f};   // tan(angle right of center), positive = right
     std::atomic<float> tanUp{0.0f};      // tan(angle above center), positive = up
-    std::atomic<float> fovDegrees{DEFAULT_FOV_DEG};  // Live FOV from engine camera
+    // The view camera's vertical FOV. Zero when it could not be read, which hides the dot rather
+    // than drawing it at a guessed scale.
+    std::atomic<float> fovDegrees{0.0f};
     std::atomic<bool> enabled{false};
 
     // Config - match stock reticle (small white dot)
@@ -89,13 +95,6 @@ struct CrosshairState {
 // Global state instances
 static DX12State g_dx;
 static CrosshairState g_crosshair;
-
-// Forward declarations
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    return CallWindowProc(g_dx.oWndProc, hWnd, msg, wParam, lParam);
-}
 
 // Update per-frame state from DX Present.
 // Rotation, position, and crosshair offset are processed directly in
@@ -119,27 +118,14 @@ static void DrawCrosshair(float screenWidth, float screenHeight) {
     float tanRight = g_crosshair.tanRight.load(std::memory_order_relaxed);
     float tanUp = g_crosshair.tanUp.load(std::memory_order_relaxed);
     float fovDeg = g_crosshair.fovDegrees.load(std::memory_order_relaxed);
+    if (fovDeg <= 0.0f || screenHeight <= 0.0f) return;
 
-    // Map tangent-space to screen coordinates.
-    //
-    // DL2's IBaseCamera::GetFOV returns the FOV slider value calibrated at
-    // 16:9, NOT the rendered horizontal FOV at the user's actual aspect.
-    // The engine renders Hor+ (vertical FOV constant, horizontal grows with
-    // aspect), so at 32:9 the real horizontal FOV is roughly 2x what GetFOV
-    // returns. Treating the reported value as the live H-FOV scales the
-    // reticle by the wrong tan-half-angle and the dot "flies around" by
-    // ~aspect/(16:9) at ultrawide.
-    //
-    // The fix: back-derive vertical FOV (which is invariant under Hor+) from
-    // the reported value at the 16:9 calibration aspect, then re-derive the
-    // current horizontal FOV from V-FOV * actual_aspect. At 16:9 this is a
-    // no-op (preserves prior behaviour); at 32:9 it halves the H deflection.
+    // The engine camera's FOV is vertical, and the projection's horizontal scale is the vertical
+    // one divided by the aspect (m11 / m00 = 1.7777 at 16:9), so the horizontal half-angle
+    // follows from the frame's own aspect.
     constexpr float kDegToRad = 0.0174532925f;
-    constexpr float kCalibrationAspect = 16.0f / 9.0f;
-    float aspectRatio = screenWidth / screenHeight;
-    float tanHalfReportedH = std::tan(fovDeg * kDegToRad * 0.5f);
-    float tanHalfVFov = tanHalfReportedH / kCalibrationAspect;
-    float tanHalfHFov = tanHalfVFov * aspectRatio;
+    float tanHalfVFov = std::tan(fovDeg * kDegToRad * 0.5f);
+    float tanHalfHFov = tanHalfVFov * (screenWidth / screenHeight);
 
     float halfW = screenWidth * 0.5f;
     float halfH = screenHeight * 0.5f;
@@ -182,9 +168,15 @@ static bool InitializeDX12(IDXGISwapChain* pSwapChain) {
 
     g_dx.hWindow = desc.OutputWindow;
     g_dx.bufferCount = desc.BufferCount;
+    g_dx.rtvFormat = desc.BufferDesc.Format;
 
     // Cache SwapChain3 interface for per-frame GetCurrentBackBufferIndex
-    pSwapChain->QueryInterface(IID_PPV_ARGS(&g_dx.pSwapChain3));
+    hr = pSwapChain->QueryInterface(IID_PPV_ARGS(&g_dx.pSwapChain3));
+    if (FAILED(hr)) {
+        Logger::Instance().Error("Swapchain has no IDXGISwapChain3: 0x%08X", hr);
+        return false;
+    }
+    g_dx.pSwapChain = pSwapChain;
 
     Logger::Instance().Info("Swapchain: %dx%d, %d buffers, window=%p",
         desc.BufferDesc.Width, desc.BufferDesc.Height, g_dx.bufferCount, g_dx.hWindow);
@@ -241,9 +233,6 @@ static bool InitializeDX12(IDXGISwapChain* pSwapChain) {
         rtvHandle.ptr += g_dx.rtvDescriptorSize;
     }
 
-    // Hook WndProc
-    g_dx.oWndProc = (WNDPROC)SetWindowLongPtr(g_dx.hWindow, GWLP_WNDPROC, (LONG_PTR)WndProc);
-
     // Initialize ImGui
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -257,7 +246,7 @@ static bool InitializeDX12(IDXGISwapChain* pSwapChain) {
     initInfo.Device = g_dx.pDevice;
     initInfo.CommandQueue = g_dx.pCommandQueue;
     initInfo.NumFramesInFlight = g_dx.bufferCount;
-    initInfo.RTVFormat = desc.BufferDesc.Format;
+    initInfo.RTVFormat = g_dx.rtvFormat;
     initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
     initInfo.SrvDescriptorHeap = g_dx.pSrvDescHeap;
     initInfo.LegacySingleSrvCpuDescriptor = g_dx.pSrvDescHeap->GetCPUDescriptorHandleForHeapStart();
@@ -269,15 +258,24 @@ static bool InitializeDX12(IDXGISwapChain* pSwapChain) {
     }
 
     g_dx.initialized = true;
+    g_dx.buffersReady = true;
     Logger::Instance().Info("DX12 ImGui initialized successfully");
-
-    // Crosshair data scan is done in RenderImGui (retries across frames)
 
     return true;
 }
 
 static void RenderImGui(IDXGISwapChain* pSwapChain) {
-    if (!g_dx.initialized) return;
+    if (!g_dx.initialized || !g_dx.buffersReady) return;
+    // Present is hooked on the shared DXGI vtable, so it also fires for any other swap chain in
+    // the process. Drawing then would target this swap chain's back buffers out of turn.
+    if (pSwapChain != g_dx.pSwapChain) {
+        if (!g_dx.foreignSwapChainLogged) {
+            g_dx.foreignSwapChainLogged = true;
+            Logger::Instance().Warning("Present on swap chain %p, not the one the aim dot was set up on (%p); "
+                                       "the dot is not drawn on it", pSwapChain, g_dx.pSwapChain);
+        }
+        return;
+    }
 
     // Skip the entire ImGui submission when there is nothing to draw.
     // Without this, every Present pays the cost of an extra command-list
@@ -285,12 +283,7 @@ static void RenderImGui(IDXGISwapChain* pSwapChain) {
     bool drawReticle = g_crosshair.enabled.load(std::memory_order_relaxed) && IsInGameplay();
     if (!drawReticle) return;
 
-    // Get current back buffer index (using cached SwapChain3 interface)
-    UINT bufferIndex = 0;
-    if (g_dx.pSwapChain3) {
-        bufferIndex = g_dx.pSwapChain3->GetCurrentBackBufferIndex();
-    }
-
+    UINT bufferIndex = g_dx.pSwapChain3->GetCurrentBackBufferIndex();
     if (bufferIndex >= g_dx.pCommandAllocators.size()) return;
 
     ID3D12CommandAllocator* pAllocator = g_dx.pCommandAllocators[bufferIndex];
@@ -349,9 +342,12 @@ static void ProcessPresentFrame(IDXGISwapChain* pSwapChain, const char* hookName
 
     UpdateTrackingData();
 
-    if (!g_dx.initialized && g_dx.commandQueueReady) {
+    if (!g_dx.initialized && !g_dx.initFailed && g_dx.commandQueueReady) {
         if (InitializeDX12(pSwapChain)) {
             Logger::Instance().Info("DX12 initialized via %s", hookName);
+        } else {
+            g_dx.initFailed = true;
+            Logger::Instance().Error("DX12 overlay setup failed; the aim dot is not drawn this session");
         }
     }
 
@@ -387,43 +383,89 @@ static HRESULT __stdcall hkPresent1(IDXGISwapChain1* pSwapChain, UINT SyncInterv
     return g_dx.oPresent1(pSwapChain, SyncInterval, Flags, pPresentParameters);
 }
 
+// After a successful ResizeBuffers. The buffer count can change with it, and the RTV heap and the
+// per-buffer allocators were sized for the old count.
+static bool RecreateBackBuffers(IDXGISwapChain* pSwapChain) {
+    DXGI_SWAP_CHAIN_DESC desc;
+    HRESULT hr = pSwapChain->GetDesc(&desc);
+    if (FAILED(hr)) {
+        Logger::Instance().Error("GetDesc after ResizeBuffers failed: 0x%08X", hr);
+        return false;
+    }
+
+    // ImGui's pipeline state was built for the format the swap chain had at setup.
+    if (desc.BufferDesc.Format != g_dx.rtvFormat) {
+        Logger::Instance().Error("Swapchain format changed from %d to %d", g_dx.rtvFormat, desc.BufferDesc.Format);
+        return false;
+    }
+
+    if (desc.BufferCount != g_dx.bufferCount) {
+        Logger::Instance().Info("Swapchain buffer count %u -> %u", g_dx.bufferCount, desc.BufferCount);
+        g_dx.bufferCount = desc.BufferCount;
+
+        g_dx.pRtvDescHeap->Release();
+        g_dx.pRtvDescHeap = nullptr;
+        D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+        rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+        rtvHeapDesc.NumDescriptors = g_dx.bufferCount;
+        hr = g_dx.pDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&g_dx.pRtvDescHeap));
+        if (FAILED(hr)) {
+            Logger::Instance().Error("Failed to recreate RTV heap: 0x%08X", hr);
+            return false;
+        }
+
+        for (auto* alloc : g_dx.pCommandAllocators) {
+            if (alloc) alloc->Release();
+        }
+        g_dx.pCommandAllocators.assign(g_dx.bufferCount, nullptr);
+        for (UINT i = 0; i < g_dx.bufferCount; i++) {
+            hr = g_dx.pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                                      IID_PPV_ARGS(&g_dx.pCommandAllocators[i]));
+            if (FAILED(hr)) {
+                Logger::Instance().Error("Failed to recreate command allocator %u: 0x%08X", i, hr);
+                return false;
+            }
+        }
+    }
+
+    g_dx.pBackBuffers.assign(g_dx.bufferCount, nullptr);
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = g_dx.pRtvDescHeap->GetCPUDescriptorHandleForHeapStart();
+    for (UINT i = 0; i < g_dx.bufferCount; i++) {
+        hr = pSwapChain->GetBuffer(i, IID_PPV_ARGS(&g_dx.pBackBuffers[i]));
+        if (FAILED(hr)) {
+            Logger::Instance().Error("Failed to get back buffer %u after resize: 0x%08X", i, hr);
+            return false;
+        }
+        g_dx.pDevice->CreateRenderTargetView(g_dx.pBackBuffers[i], nullptr, rtvHandle);
+        rtvHandle.ptr += g_dx.rtvDescriptorSize;
+    }
+    return true;
+}
+
 static HRESULT __stdcall hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount,
     UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) {
 
     Logger::Instance().Info("ResizeBuffers: %dx%d", Width, Height);
 
-    // Release back buffers before resize
-    for (auto& buf : g_dx.pBackBuffers) {
-        if (buf) {
-            buf->Release();
-            buf = nullptr;
+    // ResizeBuffers fails while any reference to a back buffer is held.
+    const bool ours = g_dx.initialized && pSwapChain == g_dx.pSwapChain;
+    if (ours) {
+        g_dx.buffersReady = false;
+        for (auto& buf : g_dx.pBackBuffers) {
+            if (buf) {
+                buf->Release();
+                buf = nullptr;
+            }
         }
     }
 
     HRESULT hr = g_dx.oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 
-    // Recreate back buffer RTVs
-    if (SUCCEEDED(hr) && g_dx.initialized && !g_dx.pBackBuffers.empty()) {
-        // BufferCount == 0 means "keep existing count" per DXGI spec
-        if (BufferCount > 0) {
-            g_dx.bufferCount = BufferCount;
-        }
-        g_dx.pBackBuffers.resize(g_dx.bufferCount, nullptr);
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = g_dx.pRtvDescHeap->GetCPUDescriptorHandleForHeapStart();
-        for (UINT i = 0; i < g_dx.bufferCount; i++) {
-            pSwapChain->GetBuffer(i, IID_PPV_ARGS(&g_dx.pBackBuffers[i]));
-            g_dx.pDevice->CreateRenderTargetView(g_dx.pBackBuffers[i], nullptr, rtvHandle);
-            rtvHandle.ptr += g_dx.rtvDescriptorSize;
-        }
-
-        if (g_dx.pCommandAllocators.size() != g_dx.bufferCount) {
-            for (auto* alloc : g_dx.pCommandAllocators) {
-                if (alloc) alloc->Release();
-            }
-            g_dx.pCommandAllocators.assign(g_dx.bufferCount, nullptr);
-            for (UINT i = 0; i < g_dx.bufferCount; i++) {
-                g_dx.pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_dx.pCommandAllocators[i]));
-            }
+    if (ours && SUCCEEDED(hr)) {
+        g_dx.buffersReady = RecreateBackBuffers(pSwapChain);
+        if (!g_dx.buffersReady) {
+            Logger::Instance().Error("Aim dot back buffers could not be rebuilt after ResizeBuffers; "
+                                     "the dot is not drawn until the next resize");
         }
     }
 
@@ -489,11 +531,6 @@ void RemoveDXHook() {
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
         ImGui::DestroyContext();
-
-        // Restore WndProc
-        if (g_dx.oWndProc && g_dx.hWindow) {
-            SetWindowLongPtr(g_dx.hWindow, GWLP_WNDPROC, (LONG_PTR)g_dx.oWndProc);
-        }
 
         // Release resources
         for (auto& buf : g_dx.pBackBuffers) {

@@ -58,7 +58,6 @@ set(MOD_SOURCES
     src/hooks/aim_state.cpp
     src/hooks/input_hook.cpp
     src/hooks/dx_hook.cpp
-    src/hooks/crosshair_hook.cpp
     src/ui/notification.cpp
 )
 

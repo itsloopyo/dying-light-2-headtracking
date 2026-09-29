@@ -387,8 +387,7 @@ dying-light-2-headtracking/
 │   │   ├── engine_camera_hook.cpp  # Camera manipulation
 │   │   ├── aim_state.cpp           # Aiming down sights and the zoom, from the game's own state
 │   │   ├── input_hook.cpp          # Hotkey handling
-│   │   ├── dx_hook.cpp             # DirectX overlay
-│   │   └── crosshair_hook.cpp      # Crosshair management
+│   │   └── dx_hook.cpp             # DirectX overlay
 │   └── ui/             # User interface
 │       └── notification.cpp        # On-screen notifications
 ├── extern/             # Vendored third-party sources (MinHook, ImGui, Kiero, inih)
