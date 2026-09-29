@@ -32,7 +32,6 @@ bool Mod::Initialize() {
     m_trueFreeLook.store(m_config.true_free_look);
 
     m_session.SetMode(StartupTrackingMode(m_config));
-    m_desiredMode.store(m_session.GetMode());
     cameraunlock::PositionSettings posSettings = m_config.position;
     posSettings.sensitivity_x = kPositionSensitivity;
     posSettings.sensitivity_y = kPositionSensitivity;
@@ -246,12 +245,8 @@ void Mod::Toggle() {
 }
 
 void Mod::CycleTrackingMode() {
-    // Computed from the last requested mode, so two presses before the next camera update still
-    // advance two steps. The camera thread applies it: SetMode resets the position smoothing,
-    // which Update is reading on that thread.
-    const cameraunlock::TrackingMode mode =
-        static_cast<cameraunlock::TrackingMode>((static_cast<int>(m_desiredMode.load()) + 1) % 3);
-    m_desiredMode.store(mode);
+    // The session applies the new mode inside its next Update, on the camera thread.
+    const cameraunlock::TrackingMode mode = m_session.CycleMode();
 
     const char* label = nullptr;
     const char* notify = nullptr;
@@ -324,10 +319,9 @@ bool Mod::GetProcessedRotation(float& yaw, float& pitch, float& roll) {
     }
     m_lastProcessTime = now;
 
-    m_session.SetMode(m_desiredMode.load());
-
     // Run the full tracking pipeline (rotation + position) once per frame
     m_cachedValid = m_session.Update(deltaTime);
+    ++m_poseFrame;
     m_session.GetRotation(m_cachedYaw, m_cachedPitch, m_cachedRoll);
 
     yaw = m_cachedYaw;

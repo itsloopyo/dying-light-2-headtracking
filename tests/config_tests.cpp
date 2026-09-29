@@ -150,6 +150,9 @@ void TestDefaults() {
               d.position.limit_z == 0.40f && d.position.limit_z_back == 0.10f,
           "the lean limits are 0.30 m sideways, 0.20 m up and down, 0.40 m forward and 0.10 m back");
     Check(d.local_smoothing == 0.0f && d.remote_smoothing == 0.15f, "smoothing is 0 locally and 0.15 remotely");
+    // The margin has to exceed the near clip the engine camera reports, 0.05 m.
+    Check(d.collision_enabled && d.lean_clamp.skin == 0.10f && d.lean_clamp.release_smoothing == 0.9f,
+          "the lean collision is on, with a 0.10 m margin and 0.9 release smoothing");
 }
 
 // A start the frozen reader finds no file for maps to the table's defaults: the build ran on its
@@ -168,7 +171,7 @@ void TestLegacyDefaultsMapToTheDefaults() {
               result.dropped[0].key == "ReticleToggleKey" && result.dropped[0].value == "0x2D",
           "the old defaults drop only the reticle key, Insert");
     Check(result.pose_shaping.size() == 9, "every sensitivity and position inversion is recorded");
-    Check(result.follows_defaults_ini.size() == 17, "every one of the 17 rows follows Defaults.ini");
+    Check(result.follows_defaults_ini.size() == 19, "every one of the 19 global rows follows Defaults.ini");
     for (const cfg::PoseShapingValue& value : result.pose_shaping) {
         Check(value.folded, "[" + value.section + "] " + value.key + " holds its shipped value and is folded");
     }

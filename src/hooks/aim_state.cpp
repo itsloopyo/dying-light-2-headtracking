@@ -196,6 +196,7 @@ FppCameraSample SampleFppCamera(void* innerCamera, void* level) {
     if (!camera || !PtrAt(camera, g.innerOffset, engineCamera)) return s;
     if (engineCamera != innerCamera) return s;
     s.view = true;
+    s.viewCamera = camera;
 
     float liveRad = 0.0f;
     if (FloatAt(innerCamera, g.fovOffset, liveRad) && UsableFov(liveRad * 57.2957795f)) {

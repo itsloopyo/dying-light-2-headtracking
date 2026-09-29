@@ -266,6 +266,8 @@ struct Reading {
     float local_smoothing = 0, remote_smoothing = 0;
     bool reticle_shown = false;
     bool true_free_look = false;
+    bool collision_enabled = false;
+    float collision_margin = 0, collision_release = 0;
     bool show_notifications = false;
     std::vector<Registration> hotkeys;
 };
@@ -331,6 +333,9 @@ Record Observe(const Reading& g) {
     r["smoothing.remote"] = Hex(Bits(g.remote_smoothing));
     r["start.reticle_shown"] = Flag(g.reticle_shown);
     r["start.true_free_look"] = Flag(g.true_free_look);
+    r["collision.enabled"] = Flag(g.collision_enabled);
+    r["collision.margin"] = Hex(Bits(g.collision_margin));
+    r["collision.release"] = Hex(Bits(g.collision_release));
     r["notifications"] = Flag(g.show_notifications);
     AddHotkeys(r, g.hotkeys);
     return r;
@@ -583,6 +588,9 @@ Reading FromMigration(const Config& c) {
     g.remote_smoothing = c.remote_smoothing;
     g.reticle_shown = true;
     g.true_free_look = c.true_free_look;
+    g.collision_enabled = c.collision_enabled;
+    g.collision_margin = c.lean_clamp.skin;
+    g.collision_release = c.lean_clamp.release_smoothing;
     g.show_notifications = c.show_notifications;
     const std::pair<Action, const std::string*> lists[] = {
         {Action::Toggle, &c.toggle_key_name},
@@ -603,8 +611,12 @@ Reading FromMigration(const Config& c) {
 // The reticle key and its Ctrl+Shift+U are gone for every player, a file or none (reticle): the aim
 // dot is drawn whenever head tracking is on. Insert and Ctrl+Shift+U toggle true free look instead,
 // a setting no published build had, which starts off. Where another action already has Insert,
-// true free look takes only Ctrl+Shift+U, so Insert fires what it fired before.
+// true free look takes only Ctrl+Shift+U, so Insert fires what it fired before. The lean collision
+// is new too, and starts on with a 0.10 m margin and 0.9 release smoothing.
 Reading WithTodaysToggles(Reading g) {
+    g.collision_enabled = true;
+    g.collision_margin = 0.10f;
+    g.collision_release = 0.9f;
     g.reticle_shown = true;
     g.hotkeys.erase(std::remove_if(g.hotkeys.begin(), g.hotkeys.end(),
                                    [](const Registration& r) { return r.action == Action::Reticle; }),
@@ -777,6 +789,8 @@ std::optional<Concept> RowOf(const std::string& entry) {
         {"hotkey.yaw mode", Concept::YawModeKey},
         {"start.true_free_look", Concept::TrueFreeLook},
         {"hotkey.true free look", Concept::TrueFreeLookKey},
+        {"collision.enabled", Concept::CollisionEnabled},
+        {"collision.release", Concept::CollisionReleaseSmoothing},
     };
     const auto it = rows.find(entry);
     if (it != rows.end()) return it->second;
@@ -784,12 +798,14 @@ std::optional<Concept> RowOf(const std::string& entry) {
         "rot.yaw_sensitivity", "rot.pitch_sensitivity", "rot.roll_sensitivity", "pos.sensitivity_x",
         "pos.sensitivity_y",   "pos.sensitivity_z",     "pos.invert_x",         "pos.invert_y",
         "pos.invert_z",        "start.reticle_shown",   "notifications",        "hotkey.reticle",
+        "collision.margin",
     };
     if (none.count(entry)) return std::nullopt;
     throw std::logic_error("no row observes " + entry);
 }
 
-// Every row the table binds, each of which follows Defaults.ini.
+// Every global row the table binds, each of which follows Defaults.ini. CollisionMargin is not
+// global, and no published build had the collision rows, so no file changes them.
 const std::set<Concept>& AllRows() {
     static const std::set<Concept> all = {
         Concept::UdpPort,           Concept::EnableOnStartup,      Concept::WorldSpaceYaw,
@@ -797,7 +813,8 @@ const std::set<Concept>& AllRows() {
         Concept::RemoteSmoothing,   Concept::PositionLimitX,       Concept::PositionLimitY,
         Concept::PositionLimitYDown, Concept::PositionLimitZ,      Concept::PositionLimitZBack,
         Concept::ToggleKey,         Concept::CycleTrackingModeKey, Concept::YawModeKey,
-        Concept::TrueFreeLook,      Concept::TrueFreeLookKey,
+        Concept::TrueFreeLook,      Concept::TrueFreeLookKey,      Concept::CollisionEnabled,
+        Concept::CollisionReleaseSmoothing,
     };
     return all;
 }
@@ -886,7 +903,8 @@ const char kSkewedDefaults[] =
     "[General]\r\nEnableOnStartup=false\r\nWorldSpaceYaw=false\r\nRotationEnabled=false\r\n\r\n"
     "[Smoothing]\r\nLocalSmoothing=0.5\r\nRemoteSmoothing=0.5\r\n\r\n"
     "[Position]\r\nPositionEnabled=true\r\nPositionLimitX=0.5\r\nPositionLimitY=0.45\r\n"
-    "PositionLimitYDown=0.35\r\nPositionLimitZ=0.6\r\nPositionLimitZBack=0.25\r\nTrueFreeLook=true\r\n\r\n"
+    "PositionLimitYDown=0.35\r\nPositionLimitZ=0.6\r\nPositionLimitZBack=0.25\r\nTrueFreeLook=true\r\n"
+    "CollisionEnabled=false\r\nCollisionReleaseSmoothing=0.5\r\n\r\n"
     "[Hotkeys]\r\nToggleKey=F8\r\nCycleTrackingModeKey=F9\r\nYawModeKey=F10\r\nTrueFreeLookKey=F11\r\n";
 
 cfg::ConfigOwnerOptions<Config> Options(const std::wstring& folder, const std::wstring& defaults) {

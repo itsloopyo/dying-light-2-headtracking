@@ -138,8 +138,10 @@ cfg::ImportResult Import(const cfg::LegacyInput& input, Config& out) {
     follows.Setting(C::ToggleKey, c.toggleKey, shipped.toggleKey);
     follows.Setting(C::CycleTrackingModeKey, c.trackingModeKey, shipped.trackingModeKey);
     follows.Setting(C::YawModeKey, c.yawModeKey, shipped.yawModeKey);
-    // No published build had true free look.
+    // No published build had true free look or the lean collision.
     follows.Setting(C::TrueFreeLook, true);
+    follows.Setting(C::CollisionEnabled, true);
+    follows.Setting(C::CollisionReleaseSmoothing, true);
     follows.Setting(C::TrueFreeLookKey, !InsertTaken(c));
 
     return absent ? cfg::ImportResult::Absent(std::move(dropped), std::move(shaping), follows.Concepts())
@@ -153,7 +155,8 @@ cfg::ConfigTable<Config> MakeConfigTable() {
     cfg::ConfigTable<Config> table = cfg::HeadTrackingConfigTable<Config>(
         {C::UdpPort, C::EnableOnStartup, C::WorldSpaceYaw, C::RotationEnabled, C::LocalSmoothing,
          C::RemoteSmoothing, C::PositionEnabled, C::PositionLimitX, C::PositionLimitY, C::PositionLimitYDown,
-         C::PositionLimitZ, C::PositionLimitZBack, C::TrueFreeLook, C::ToggleKey, C::CycleTrackingModeKey,
+         C::PositionLimitZ, C::PositionLimitZBack, C::TrueFreeLook, C::CollisionEnabled, C::CollisionMargin,
+         C::CollisionReleaseSmoothing, C::ToggleKey, C::CycleTrackingModeKey,
          C::YawModeKey, C::TrueFreeLookKey});
     table.Select(C::WorldSpaceYaw).Writable()
         .Select(C::RotationEnabled).Writable()

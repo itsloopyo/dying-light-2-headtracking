@@ -39,6 +39,10 @@ public:
     // Returns true if data is valid, false otherwise
     bool GetProcessedRotation(float& yaw, float& pitch, float& roll);
 
+    // Counts the tracking pipeline's updates, so a caller moving several cameras in one frame can
+    // do per-frame work once.
+    uint64_t GetPoseFrame() const { return m_poseFrame; }
+
     // Get processed position offset (meters)
     // Returns true if position data is valid
     bool GetPositionOffset(float& x, float& y, float& z);
@@ -68,9 +72,6 @@ private:
     cameraunlock::UdpReceiver m_udpReceiver;
     cameraunlock::HeadTrackingSession<cameraunlock::UdpReceiver> m_session;
 
-    // The tracking mode the hotkey asked for, applied to the session on the camera thread.
-    std::atomic<cameraunlock::TrackingMode> m_desiredMode{cameraunlock::TrackingMode::RotationAndPosition};
-
     // Yaw rotation frame (PgDn / Ctrl+Shift+H toggles)
     std::atomic<bool> m_worldLockedYaw{false};
 
@@ -79,6 +80,7 @@ private:
 
     // Timing for frame-rate independent processing
     uint64_t m_lastProcessTime = 0;
+    uint64_t m_poseFrame = 0;
 
     // Cached rotation from last GetProcessedRotation
     // Used to prevent re-processing when MoveCameraHook fires multiple

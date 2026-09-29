@@ -3,11 +3,14 @@
 #include "aim_state.h"
 #include "dx_hook.h"
 #include "hook_manager.h"
+#include "lean_trace.h"
 #include "core/aim_pose.h"
 #include "core/mod.h"
 #include "core/logger.h"
 #include "core/rotation_math.h"
 
+#include <cameraunlock/camera/lean_clamp.h>
+#include <cameraunlock/camera/lean_line_sweep.h>
 #include <cameraunlock/memory/pattern_scanner.h>
 #include <cameraunlock/memory/safe_memory.h>
 #include <cameraunlock/time/qpc_clock.h>
@@ -81,6 +84,101 @@ static bool g_zoomLogged = false;
 static float g_zoomLoggedFactor = 1.0f;
 static ULONGLONG g_zoomLoggedTick = 0;
 static bool g_wasAiming = false;
+
+// The lean kept out of the level. Run once per tracking update on the view camera; every camera
+// moved in that update takes the lean at the fraction of it the view camera was allowed.
+static bool g_leanTraceReady = false;
+static cameraunlock::camera::LeanClamp g_leanClamp;
+static lean_trace::Context g_leanContext;
+static cameraunlock::camera::LineSweep g_leanSweep;
+static float g_leanScale = 1.0f;
+static uint64_t g_leanFrame = 0;
+static uint64_t g_leanClampMicros = 0;
+static cameraunlock::math::Vec3 g_lastEye;
+static bool g_haveLastEye = false;
+static bool g_leanNearLogged = false;
+static bool g_leanContact = false;
+static bool g_leanFailed = false;
+static ULONGLONG g_leanSampleTick = 0;
+// An eye that moved further than this between two view camera updates was cut or teleported,
+// and the allowance it carries belongs to the previous place.
+static constexpr float kCameraCutDistance = 1.0f;
+static constexpr ULONGLONG kLeanSampleMs = 10000;
+// How far the aim dot looks along the clean aim for the surface it lands on. Past it the aim point is
+// far enough that a lean moves it by less than a pixel, and the dot shows the aim direction.
+static constexpr float kAimTraceLength = 500.0f;
+static bool g_aimTraceFailLogged = false;
+
+static void ForgetLeanAllowance() {
+    g_leanClamp.Reset();
+    g_leanScale = 1.0f;
+    g_haveLastEye = false;
+}
+
+// The fraction of `desired` (the lean in world metres) the level leaves room for at `eye`.
+static float LeanCollisionScale(const FppCameraSample& fpp, void* engineCamera, void* levelDI,
+                                const cameraunlock::math::Vec3& eye, const cameraunlock::math::Vec3& desired) {
+    using cameraunlock::math::Vec3;
+    if (!g_leanTraceReady || !Mod::Instance().GetConfig().collision_enabled) return 1.0f;
+    if (!fpp.view) return g_leanScale;
+    const uint64_t frame = Mod::Instance().GetPoseFrame();
+    if (frame == g_leanFrame) return g_leanScale;
+    g_leanFrame = frame;
+
+    if (!g_leanNearLogged) {
+        g_leanNearLogged = true;
+        const float margin = g_leanClamp.Settings().skin;
+        float nearClip = 0.0f;
+        if (!lean_trace::NearClip(engineCamera, nearClip)) {
+            Logger::Instance().Warning("Lean collision: margin %.3f m, near clip unreadable", margin);
+        } else if (margin <= nearClip) {
+            Logger::Instance().Warning("Lean collision: margin %.3f m does not exceed the near clip %.3f m, so a wall "
+                                       "held at the margin is still culled",
+                                       margin, nearClip);
+        } else {
+            Logger::Instance().Info("Lean collision: margin %.3f m, near clip %.3f m", margin, nearClip);
+        }
+    }
+
+    if (g_haveLastEye && (eye - g_lastEye).SqrMagnitude() > kCameraCutDistance * kCameraCutDistance) {
+        g_leanClamp.Reset();
+    }
+    g_lastEye = eye;
+    g_haveLastEye = true;
+
+    const uint64_t now = cameraunlock::time::QpcNowMicros();
+    float dt = g_leanClampMicros ? static_cast<float>(now - g_leanClampMicros) * 1e-6f : 0.0f;
+    if (dt > 0.1f) dt = 0.1f;
+    g_leanClampMicros = now;
+
+    lean_trace::Validate(fpp.viewCamera, levelDI);
+    const float desiredLength = desired.Magnitude();
+    g_leanContext.viewCamera = fpp.viewCamera;
+    g_leanContext.eye = eye;
+    g_leanContext.leanDirection = desiredLength > 0.0f ? desired * (1.0f / desiredLength) : Vec3::Zero();
+    const Vec3 allowed = g_leanClamp.Apply(eye, desired, dt, &cameraunlock::camera::LineSweepQuery, &g_leanSweep);
+    g_leanScale = desiredLength > 0.0f ? allowed.Magnitude() / desiredLength : 1.0f;
+
+    // Transitions alone cannot tell "the casts run and the room is open" from "the casts are not
+    // running", so a sample goes out every few seconds as well.
+    const bool contact = g_leanClamp.InContact();
+    const bool failed = g_leanClamp.LastQueryFailed();
+    const ULONGLONG tick = GetTickCount64();
+    if (contact != g_leanContact || failed != g_leanFailed || tick - g_leanSampleTick >= kLeanSampleMs) {
+        unsigned casts = 0;
+        double micros = 0.0;
+        lean_trace::TakeStats(casts, micros);
+        const double seconds = g_leanSampleTick ? static_cast<double>(tick - g_leanSampleTick) / 1000.0 : 0.0;
+        Logger::Instance().Info("Lean collision: %s%s, lean %.3f m allowed %.3f m (%u casts in %.2f ms over the "
+                                "last %.1f s)",
+                                contact ? "held off a surface" : "clear", failed ? ", CAST NOT RUN" : "",
+                                desiredLength, allowed.Magnitude(), casts, micros / 1000.0, seconds);
+        g_leanContact = contact;
+        g_leanFailed = failed;
+        g_leanSampleTick = tick;
+    }
+    return g_leanScale;
+}
 
 // Initialize game state detection
 // Pattern: 48 8B 05 ?? ?? ?? ?? 48 85 C0 74 ?? 48 83 C0
@@ -266,6 +364,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
         if (skip) {
             g_aimPose.Stop();
+            ForgetLeanAllowance();
             if (g_wasAiming) {
                 g_wasAiming = false;
                 Logger::Instance().Info("Sights down");
@@ -277,7 +376,8 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     // Read after the gameplay gate, so a menu or a load reports its own reason and the game's
     // camera and firearm state are only asked for in gameplay.
-    const FppCameraSample fpp = SampleFppCamera(thisCamera, GetLevelDI(GetCGame()));
+    void* const levelDI = GetLevelDI(GetCGame());
+    const FppCameraSample fpp = SampleFppCamera(thisCamera, levelDI);
     float zoomFactor = 1.0f;
     if (fpp.fovKnown) zoomFactor = ZoomFactor(fpp.liveFovDeg, fpp.baseFovDeg);
     // The aim dot follows the view camera alone. Other cameras moved through this call would
@@ -319,6 +419,7 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     float processedYaw, processedPitch, processedRoll;
     if (!Mod::Instance().GetProcessedRotation(processedYaw, processedPitch, processedRoll)) {
         g_aimPose.Stop();
+        ForgetLeanAllowance();
         ((MoveCameraFunc_t)g_hook.pMoveCameraOriginal)(thisCamera, forward, up, position);
         return;
     }
@@ -334,7 +435,10 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     tracked.pitch = processedPitch;
     tracked.roll = processedRoll;
     bool hasPosOffset = Mod::Instance().GetPositionOffset(tracked.lean.x, tracked.lean.y, tracked.lean.z);
-    if (!hasPosOffset) tracked.lean = cameraunlock::math::Vec3();
+    if (!hasPosOffset) {
+        tracked.lean = cameraunlock::math::Vec3();
+        if (fpp.view) ForgetLeanAllowance();
+    }
     // GetTickCount64 steps in about 16 ms, a tenth of the fade.
     if (fpp.view) {
         g_aimPose.Update(fpp.aiming, Mod::Instance().IsTrueFreeLook(), cameraunlock::time::QpcNowMicros() / 1000);
@@ -388,13 +492,13 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
 
     // Apply 6DOF position offset in horizon-locked space
     if (hasPosOffset) {
-        float dWorldX = flatFwdX * posOffZ + leftX * posOffX;
-        float dWorldY = posOffY;
-        float dWorldZ = flatFwdZ * posOffZ + leftZ * posOffX;
-
-        myPos[0] += dWorldX;
-        myPos[1] += dWorldY;
-        myPos[2] += dWorldZ;
+        const cameraunlock::math::Vec3 lean(flatFwdX * posOffZ + leftX * posOffX, posOffY,
+                                            flatFwdZ * posOffZ + leftZ * posOffX);
+        const float scale = LeanCollisionScale(fpp, thisCamera, levelDI,
+                                               cameraunlock::math::Vec3(posIn[0], posIn[1], posIn[2]), lean);
+        myPos[0] += lean.x * scale;
+        myPos[1] += lean.y * scale;
+        myPos[2] += lean.z * scale;
     }
 
     // --- Crosshair projection (Subnautica approach) ---
@@ -407,13 +511,38 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     // This naturally handles both rotation and position because we use
     // the ACTUAL modified camera vectors, not a reconstruction from angles.
     if (fpp.view) {
-        // toAim = originalPos + D * originalFwd - headTrackedPos
-        //       = D * originalFwd - (headTrackedPos - originalPos)
-        // The position delta is (myPos - posIn) in world space.
-        static constexpr float kAimDistance = 3.0f;
-        float toAimX = kAimDistance * fwdIn[0] + (myPos[0] - posIn[0]);
-        float toAimY = kAimDistance * fwdIn[1] + (myPos[1] - posIn[1]);
-        float toAimZ = kAimDistance * fwdIn[2] + (myPos[2] - posIn[2]);
+        // toAim = aimPoint - headTrackedPos = D * originalFwd - (headTrackedPos - originalPos),
+        // with D how far the clean aim runs before something stops it. Without a lean the depth
+        // cancels in the divide below and no cast is needed; with one, a fixed D puts the dot on
+        // the aim point at that one range and off it everywhere else.
+        const float leanX = myPos[0] - posIn[0];
+        const float leanY = myPos[1] - posIn[1];
+        const float leanZ = myPos[2] - posIn[2];
+        float toAimX = fwdIn[0];
+        float toAimY = fwdIn[1];
+        float toAimZ = fwdIn[2];
+        bool aimKnown = true;
+        if (leanX != 0.0f || leanY != 0.0f || leanZ != 0.0f) {
+            const cameraunlock::math::Vec3 aim =
+                cameraunlock::math::Vec3(fwdIn[0], fwdIn[1], fwdIn[2]).Normalized();
+            bool hit = false;
+            float depth = 0.0f;
+            lean_trace::Validate(fpp.viewCamera, levelDI);
+            if (!lean_trace::AimDistance(fpp.viewCamera, cameraunlock::math::Vec3(posIn[0], posIn[1], posIn[2]), aim,
+                                         kAimTraceLength, hit, depth)) {
+                aimKnown = false;
+                if (!g_aimTraceFailLogged) {
+                    g_aimTraceFailLogged = true;
+                    Logger::Instance().Warning("Aim dot: the aim cannot be traced, so the dot is hidden while you lean");
+                }
+            } else if (hit) {
+                toAimX = aim.x * depth - leanX;
+                toAimY = aim.y * depth - leanY;
+                toAimZ = aim.z * depth - leanZ;
+            }
+        }
+        // A zero FOV hides the dot rather than drawing it where the aim might not be.
+        if (!aimKnown) SetCrosshairFOV(0.0f);
 
         // Head-tracked camera left axis = cross(myFwd, myUp)
         float headLeftX = myFwd[1]*myUp[2] - myFwd[2]*myUp[1];
@@ -473,6 +602,16 @@ bool InstallEngineCameraHook() {
     // Without it the sights read as down and nothing is scaled to the zoom; head tracking itself
     // is unaffected.
     InitializeAimState();
+
+    const DL2HT::Config& config = Mod::Instance().GetConfig();
+    g_leanTraceReady = lean_trace::Initialize();
+    g_leanClamp.SetSettings(config.lean_clamp);
+    g_leanSweep.cast = &lean_trace::Cast;
+    g_leanSweep.cast_context = &g_leanContext;
+    g_leanSweep.settings.radius = config.lean_clamp.skin;
+    Logger::Instance().Info("Lean collision: %s (margin %.3f m, release smoothing %.2f)",
+                            config.collision_enabled ? (g_leanTraceReady ? "on" : "unavailable") : "off (CollisionEnabled)",
+                            config.lean_clamp.skin, config.lean_clamp.release_smoothing);
 
     return true;
 }

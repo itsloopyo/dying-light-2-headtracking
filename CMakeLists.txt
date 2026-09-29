@@ -56,6 +56,7 @@ set(MOD_SOURCES
     src/hooks/hook_manager.cpp
     src/hooks/engine_camera_hook.cpp
     src/hooks/aim_state.cpp
+    src/hooks/lean_trace.cpp
     src/hooks/input_hook.cpp
     src/hooks/dx_hook.cpp
     src/ui/notification.cpp

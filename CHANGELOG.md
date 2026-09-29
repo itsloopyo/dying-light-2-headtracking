@@ -38,6 +38,11 @@
   on without it: without the sights, leaning does not ease out while you aim;
   without the zoom, head movement is not scaled to it and the sights are not
   read either.
+- Leaning stops at walls, floors and ceilings instead of moving the view
+  through them. The view is held `CollisionMargin` (0.1 m) off the surface and
+  eases back out once the lean clears it. `[Position] CollisionEnabled` in
+  `CameraUnlock.ini` turns this off, and `CollisionReleaseSmoothing` sets how
+  gently the view eases back out.
 
 ### Changed
 
@@ -138,6 +143,9 @@
   the view camera every frame, instead of a value read from the wrong camera
   object. Only the view camera moves it now, so another camera the game updates
   in the same frame no longer overwrites where it is drawn.
+- While you lean, the aim dot is placed on the surface your aim lands on,
+  found with a ray along the aim each frame, instead of on a point 3 m ahead,
+  and the lean now moves it in the right direction.
 - Quitting the game no longer tears down the overlay and hooks while Windows is
   already unloading the graphics runtime.
 - The aim dot survives a resize that changes the number of swap chain buffers,

@@ -7,6 +7,9 @@ struct FppCameraSample {
     // The camera being moved is the one the level renders the view from. Only its update reads
     // the sights.
     bool view = false;
+    // The level's view camera (ILevel::GetViewCamera) when `view`, the IBaseCamera that wraps the
+    // engine camera being moved.
+    void* viewCamera = nullptr;
     // It is also the player's first-person camera (CameraFPPDI). Everything below is meaningless
     // when false.
     bool fpp = false;
