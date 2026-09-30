@@ -33,11 +33,11 @@ bool Validate(void* viewCamera, void* levelDI);
 cameraunlock::camera::LineHit Cast(void* context, const cameraunlock::math::Vec3& start,
                                    const cameraunlock::math::Vec3& direction, float length);
 
-// How far the clean aim runs from `eye` along `direction` before something stops it, for the aim
-// dot. False when the cast cannot run through `viewCamera` (see Validate); `hit` false with a true
-// return is a definite clear line out to `length`.
-bool AimDistance(void* viewCamera, const cameraunlock::math::Vec3& eye, const cameraunlock::math::Vec3& direction,
-                 float length, bool& hit, float& distance);
+// The clean aim's scene hit, excluding Barrier volumes and the player. False when the cast
+// cannot run; a successful query with hit=false is a clear line out to length.
+bool AimPoint(void* viewCamera, void* player, const cameraunlock::math::Vec3& eye,
+              const cameraunlock::math::Vec3& direction, float length, bool& hit,
+              cameraunlock::math::Vec3& point);
 
 // Casts since the last call, and the time they took in microseconds, for the periodic log line.
 void TakeStats(unsigned& casts, double& micros);

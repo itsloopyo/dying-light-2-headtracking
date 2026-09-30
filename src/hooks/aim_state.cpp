@@ -234,6 +234,7 @@ FppCameraSample SampleFppCamera(void* innerCamera, void* level) {
     }
     // The id is handed out the first time the game asks for the module, and the visual asks every
     // frame, so -1 only happens before the first camera update.
+    s.player = vars;
     if (id == -1 || !vars) return s;
     void* firearm = g.getComponent(vars, id);
     s.aiming = firearm && g.isIronsightAiming(firearm);

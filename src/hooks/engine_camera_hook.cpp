@@ -525,20 +525,23 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
         bool hit = false;
         float depth = 0.0f;
         if (leanX != 0.0f || leanY != 0.0f || leanZ != 0.0f) {
+            cameraunlock::math::Vec3 aimPoint;
             const cameraunlock::math::Vec3 aim =
                 cameraunlock::math::Vec3(-fwdIn[0], -fwdIn[1], -fwdIn[2]).Normalized();
             lean_trace::Validate(fpp.viewCamera, levelDI);
-            if (!lean_trace::AimDistance(fpp.viewCamera, cameraunlock::math::Vec3(posIn[0], posIn[1], posIn[2]), aim,
-                                         kAimTraceLength, hit, depth)) {
+            if (!lean_trace::AimPoint(fpp.viewCamera, fpp.player,
+                                      cameraunlock::math::Vec3(posIn[0], posIn[1], posIn[2]), aim,
+                                      kAimTraceLength, hit, aimPoint)) {
                 aimKnown = false;
                 if (!g_aimTraceFailLogged) {
                     g_aimTraceFailLogged = true;
                     Logger::Instance().Warning("Aim dot: the aim cannot be traced, so the dot is hidden while you lean");
                 }
             } else if (hit) {
-                toAimX = aim.x * depth - leanX;
-                toAimY = aim.y * depth - leanY;
-                toAimZ = aim.z * depth - leanZ;
+                depth = (aimPoint - cameraunlock::math::Vec3(posIn[0], posIn[1], posIn[2])).Magnitude();
+                toAimX = aimPoint.x - myPos[0];
+                toAimY = aimPoint.y - myPos[1];
+                toAimZ = aimPoint.z - myPos[2];
             }
         }
         if (aimKnown && g_aimTraceFailLogged) {

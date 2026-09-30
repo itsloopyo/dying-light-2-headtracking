@@ -13,6 +13,7 @@ struct FppCameraSample {
     // It is also the player's first-person camera (CameraFPPDI). Everything below is meaningless
     // when false.
     bool fpp = false;
+    void* player = nullptr;
     // Aiming down the sights of a firearm, polled from the player's firearm module every frame.
     bool aiming = false;
     // Whether the view camera's own FOV was readable. Needs only `view`, not `fpp`.

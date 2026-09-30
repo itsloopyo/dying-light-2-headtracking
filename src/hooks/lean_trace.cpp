@@ -10,8 +10,7 @@
 
 // IGSObject::Raytrace reads [this+0x20]->+0x48 (the level) and calls the level's virtual line cast
 // with a collision info it builds from the arguments. It moves `to` back to the hit point and
-// returns non-zero on a hit. Its SCollision result carries the hit point but no surface normal,
-// which is why Cast measures the normal with two more casts.
+// returns non-zero on a hit. SCollision begins with the surface normal.
 //
 // The arguments below are those the game's own gameplay queries pass (type 7: the physics world
 // and the terrain), with the filter mask 0x100e1e00 that several of them use. With mask 0 the
@@ -35,6 +34,10 @@ using RaytraceFn = uint8_t (*)(void* self, uint8_t type, void* collision, const 
 
 constexpr uint8_t kRaytraceType = 7;
 constexpr int64_t kCollisionMask = 0x100e1e00;
+// Bullet's primary line query excludes this flag and passes the shooter's IControlObject.
+constexpr int64_t kBulletCollisionMask = 0x04000000;
+// Barrier collision hulls can extend above visible railings and must not set the aim depth.
+constexpr int64_t kBarrierCollisionGroup = 0x20;
 constexpr int kCameraEngineOffset = 0x20;
 constexpr int kEngineLevelOffset = 0x48;
 constexpr int kLevelDiLevelOffset = 0x38;
@@ -56,28 +59,35 @@ int64_t g_ticks = 0;
 struct RawHit {
     bool hit = false;
     float distance = 0.0f;
+    Vec3 point;
+    uint64_t component = 0;
+    uint64_t entity = 0;
 };
 
-RawHit Raw(void* camera, const Vec3& start, const Vec3& direction, float length) {
+RawHit Raw(void* camera, const Vec3& start, const Vec3& direction, float length,
+           int64_t mask = kCollisionMask, void* ignore = nullptr) {
     const float from[4] = {start.x, start.y, start.z, 0.0f};
     float to[4] = {start.x + direction.x * length, start.y + direction.y * length, start.z + direction.z * length,
                    0.0f};
-    uint8_t collision[0x40] = {};
+    alignas(16) uint8_t collision[0x40] = {};
     const EntitySpan none{nullptr, 0};
 
     LARGE_INTEGER t0, t1;
     QueryPerformanceCounter(&t0);
     const uint8_t hit =
-        g_raytrace(camera, kRaytraceType, collision, from, to, 0, false, nullptr, 0, 0, kCollisionMask, &none);
+        g_raytrace(camera, kRaytraceType, collision, from, to, 0, false, ignore, 0, 0, mask, &none);
     QueryPerformanceCounter(&t1);
     ++g_casts;
     g_ticks += t1.QuadPart - t0.QuadPart;
 
     RawHit out;
     out.hit = hit != 0;
+    out.point = Vec3(to[0], to[1], to[2]);
     if (out.hit) {
         const float dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
         out.distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        std::memcpy(&out.component, collision + 0x28, sizeof(out.component));
+        std::memcpy(&out.entity, collision + 0x30, sizeof(out.entity));
     }
     return out;
 }
@@ -177,12 +187,24 @@ cameraunlock::camera::LineHit Cast(void* context, const Vec3& start, const Vec3&
     return out;
 }
 
-bool AimDistance(void* viewCamera, const Vec3& eye, const Vec3& direction, float length, bool& hit,
-                 float& distance) {
-    if (!g_raytrace || !g_cameraValid || viewCamera != g_validatedCamera) return false;
-    const RawHit h = Raw(viewCamera, eye, direction, length);
+bool AimPoint(void* viewCamera, void* player, const Vec3& eye, const Vec3& direction, float length,
+              bool& hit, Vec3& point) {
+    if (!g_raytrace || !g_cameraValid || viewCamera != g_validatedCamera || !player) return false;
+    const RawHit h = Raw(viewCamera, eye, direction, length, kBulletCollisionMask | kBarrierCollisionGroup,
+                         static_cast<uint8_t*>(player) + 0x10);
     hit = h.hit;
-    distance = h.distance;
+    point = h.point;
+    static ULONGLONG sampleTick = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (now - sampleTick >= 1000) {
+        sampleTick = now;
+        Logger::Instance().Info("AIMTRACE eye=(%.4f,%.4f,%.4f) dir=(%.6f,%.6f,%.6f) "
+                                "aim=(%d,%.4f,%llX,%llX) "
+                                "point=(%.4f,%.4f,%.4f)",
+                                eye.x, eye.y, eye.z, direction.x, direction.y, direction.z,
+                                h.hit, h.distance, h.component, h.entity,
+                                h.point.x, h.point.y, h.point.z);
+    }
     return true;
 }
 
