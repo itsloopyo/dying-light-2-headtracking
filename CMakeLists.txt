@@ -140,6 +140,11 @@ if(DL2HT_BUILD_TESTS)
     target_link_libraries(dl2ht_aim_pose_tests PRIVATE cameraunlock)
     add_test(NAME aim_pose_tests COMMAND dl2ht_aim_pose_tests)
 
+    add_executable(dl2ht_aim_projection_tests tests/aim_projection_tests.cpp)
+    target_include_directories(dl2ht_aim_projection_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(dl2ht_aim_projection_tests PRIVATE cameraunlock)
+    add_test(NAME aim_projection_tests COMMAND dl2ht_aim_projection_tests)
+
     # The config differential test. The oracle is v1.4.0's reader, the newest published build,
     # copied byte for byte into tests/config_differential/oracle with the logger, path helpers
     # and inih it compiled; renaming its namespace and inih's entry points lets it link beside

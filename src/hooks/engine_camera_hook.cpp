@@ -5,6 +5,7 @@
 #include "hook_manager.h"
 #include "lean_trace.h"
 #include "core/aim_pose.h"
+#include "core/aim_projection.h"
 #include "core/mod.h"
 #include "core/logger.h"
 #include "core/rotation_math.h"
@@ -108,6 +109,7 @@ static constexpr ULONGLONG kLeanSampleMs = 10000;
 // far enough that a lean moves it by less than a pixel, and the dot shows the aim direction.
 static constexpr float kAimTraceLength = 500.0f;
 static bool g_aimTraceFailLogged = false;
+static ULONGLONG g_aimSampleTick = 0;
 
 static void ForgetLeanAllowance() {
     g_leanClamp.Reset();
@@ -511,22 +513,20 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
     // This naturally handles both rotation and position because we use
     // the ACTUAL modified camera vectors, not a reconstruction from angles.
     if (fpp.view) {
-        // toAim = aimPoint - headTrackedPos = D * originalFwd - (headTrackedPos - originalPos),
-        // with D how far the clean aim runs before something stops it. Without a lean the depth
-        // cancels in the divide below and no cast is needed; with one, a fixed D puts the dot on
-        // the aim point at that one range and off it everywhere else.
+        // The engine's "forward" is backward, so the shot travels along its negative.
+        // Without a lean the depth cancels in the perspective divide and no cast is needed.
         const float leanX = myPos[0] - posIn[0];
         const float leanY = myPos[1] - posIn[1];
         const float leanZ = myPos[2] - posIn[2];
-        float toAimX = fwdIn[0];
-        float toAimY = fwdIn[1];
-        float toAimZ = fwdIn[2];
+        float toAimX = -fwdIn[0];
+        float toAimY = -fwdIn[1];
+        float toAimZ = -fwdIn[2];
         bool aimKnown = true;
+        bool hit = false;
+        float depth = 0.0f;
         if (leanX != 0.0f || leanY != 0.0f || leanZ != 0.0f) {
             const cameraunlock::math::Vec3 aim =
-                cameraunlock::math::Vec3(fwdIn[0], fwdIn[1], fwdIn[2]).Normalized();
-            bool hit = false;
-            float depth = 0.0f;
+                cameraunlock::math::Vec3(-fwdIn[0], -fwdIn[1], -fwdIn[2]).Normalized();
             lean_trace::Validate(fpp.viewCamera, levelDI);
             if (!lean_trace::AimDistance(fpp.viewCamera, cameraunlock::math::Vec3(posIn[0], posIn[1], posIn[2]), aim,
                                          kAimTraceLength, hit, depth)) {
@@ -541,25 +541,29 @@ void __fastcall MoveCameraHook(void* thisCamera, void* forward, void* up, void* 
                 toAimZ = aim.z * depth - leanZ;
             }
         }
-        // A zero FOV hides the dot rather than drawing it where the aim might not be.
-        if (!aimKnown) SetCrosshairFOV(0.0f);
+        if (aimKnown && g_aimTraceFailLogged) {
+            g_aimTraceFailLogged = false;
+            Logger::Instance().Info("Aim dot: projection available again");
+        }
 
-        // Head-tracked camera left axis = cross(myFwd, myUp)
-        float headLeftX = myFwd[1]*myUp[2] - myFwd[2]*myUp[1];
-        float headLeftY = myFwd[2]*myUp[0] - myFwd[0]*myUp[2];
-        float headLeftZ = myFwd[0]*myUp[1] - myFwd[1]*myUp[0];
+        float tanRight = 0.0f, tanUp = 0.0f;
+        const bool projected = aimKnown && ProjectAim({toAimX, toAimY, toAimZ}, myFwd, myUp, tanRight, tanUp);
+        SetCrosshairProjection(tanRight, tanUp);
+        if (!projected) SetCrosshairFOV(0.0f);
 
-        // Project toAim onto head-tracked camera axes
-        float bDepth = toAimX*myFwd[0]    + toAimY*myFwd[1]    + toAimZ*myFwd[2];
-        float bUp    = toAimX*myUp[0]     + toAimY*myUp[1]     + toAimZ*myUp[2];
-        float bLeft  = toAimX*headLeftX   + toAimY*headLeftY   + toAimZ*headLeftZ;
-
-        if (bDepth > 0.01f) {
-            // DL2's engine forward convention inverts the projection -
-            // empirically verified: positive bLeft → screen right, negative bUp → screen up.
-            SetCrosshairProjection(bLeft / bDepth, -bUp / bDepth);
-        } else {
-            SetCrosshairProjection(0, 0);
+        const ULONGLONG tick = GetTickCount64();
+        if (tick - g_aimSampleTick >= 1000) {
+            g_aimSampleTick = tick;
+            float rotRight = 0.0f, rotUp = 0.0f;
+            const bool rotationValid = ProjectAim({-fwdIn[0], -fwdIn[1], -fwdIn[2]}, myFwd, myUp, rotRight, rotUp);
+            Logger::Instance().Info("AIMGEO trace=%s depth=%.4f leanWorld=(%.4f,%.4f,%.4f) "
+                                    "pose=(%.3f,%.3f,%.3f) zoom=%.4f vfov=%.4f "
+                                    "rotValid=%d rot=(%.6f,%.6f) valid=%d full=(%.6f,%.6f)",
+                                    !aimKnown ? "failed" : hit ? "hit" :
+                                    (leanX != 0.0f || leanY != 0.0f || leanZ != 0.0f) ? "miss" : "not-needed",
+                                    depth, leanX, leanY, leanZ, applied.yaw, applied.pitch, applied.roll,
+                                    zoomFactor, fpp.liveFovDeg, rotationValid, rotRight, rotUp,
+                                    projected, tanRight, tanUp);
         }
     }
 

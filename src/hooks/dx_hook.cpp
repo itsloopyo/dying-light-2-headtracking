@@ -2,6 +2,7 @@
 #include "dx_hook.h"
 #include "engine_camera_hook.h"
 #include "core/logger.h"
+#include "core/aim_projection.h"
 
 #include <d3d12.h>
 #include <dxgi1_4.h>
@@ -118,26 +119,8 @@ static void DrawCrosshair(float screenWidth, float screenHeight) {
     float tanRight = g_crosshair.tanRight.load(std::memory_order_relaxed);
     float tanUp = g_crosshair.tanUp.load(std::memory_order_relaxed);
     float fovDeg = g_crosshair.fovDegrees.load(std::memory_order_relaxed);
-    if (fovDeg <= 0.0f || screenHeight <= 0.0f) return;
-
-    // The engine camera's FOV is vertical, and the projection's horizontal scale is the vertical
-    // one divided by the aspect (m11 / m00 = 1.7777 at 16:9), so the horizontal half-angle
-    // follows from the frame's own aspect.
-    constexpr float kDegToRad = 0.0174532925f;
-    float tanHalfVFov = std::tan(fovDeg * kDegToRad * 0.5f);
-    float tanHalfHFov = tanHalfVFov * (screenWidth / screenHeight);
-
-    float halfW = screenWidth * 0.5f;
-    float halfH = screenHeight * 0.5f;
-    float cx = halfW + (tanRight / tanHalfHFov) * halfW;
-    float cy = halfH - (tanUp / tanHalfVFov) * halfH;
-
-    // Clamp to screen
-    float margin = g_crosshair.dotSize + 10.0f;
-    if (cx < margin) cx = margin;
-    if (cx > screenWidth - margin) cx = screenWidth - margin;
-    if (cy < margin) cy = margin;
-    if (cy > screenHeight - margin) cy = screenHeight - margin;
+    float cx = 0.0f, cy = 0.0f;
+    if (!AimScreenPosition(tanRight, tanUp, fovDeg, screenWidth, screenHeight, cx, cy)) return;
 
     drawList->AddCircleFilled(ImVec2(cx, cy), g_crosshair.dotSize, g_crosshair.color);
 }
