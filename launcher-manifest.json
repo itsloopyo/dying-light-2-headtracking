@@ -1,30 +1,36 @@
 {
-  "schema_version": 2,
-  "mod_info": {
-    "name": "DL2HeadTracking",
-    "version": "1.4.0",
-    "game_id": "dying-light-2"
-  },
-  "strategy": "AsiLoader",
-  "delivery_mode": "manifest",
-  "files": [
-    {
-      "source": "vendor/ultimate-asi-loader/dinput8.dll",
-      "target": "ph/work/bin/x64/winmm.dll",
-      "backup": true
-    },
-    {
-      "source": "plugins/DL2HeadTracking.asi",
-      "target": "ph/work/bin/x64/DL2HeadTracking.asi"
-    }
-  ],
-  "runtime_requirements": [],
-  "dependencies": [],
-  "config": {
-    "path": "ph/work/bin/x64/CameraUnlock.ini",
-    "anchor": "game_root",
-    "legacy_source": "ph/work/bin/x64/HeadTracking.ini",
-    "canonical_since": "1.5.0",
-    "per_game": {}
-  }
+    "schema_version":  2,
+    "mod_info":  {
+                     "name":  "DL2HeadTracking",
+                     "version":  "1.5.0",
+                     "game_id":  "dying-light-2"
+                 },
+    "strategy":  "AsiLoader",
+    "delivery_mode":  "manifest",
+    "files":  [
+                  {
+                      "source":  "vendor/ultimate-asi-loader/dinput8.dll",
+                      "target":  "ph/work/bin/x64/winmm.dll",
+                      "backup":  true
+                  },
+                  {
+                      "source":  "plugins/DL2HeadTracking.asi",
+                      "target":  "ph/work/bin/x64/DL2HeadTracking.asi"
+                  }
+              ],
+    "runtime_requirements":  [
+
+                             ],
+    "dependencies":  [
+
+                     ],
+    "config":  {
+                   "path":  "ph/work/bin/x64/CameraUnlock.ini",
+                   "anchor":  "game_root",
+                   "legacy_source":  "ph/work/bin/x64/HeadTracking.ini",
+                   "canonical_since":  "1.5.0",
+                   "per_game":  {
+
+                                }
+               }
 }
